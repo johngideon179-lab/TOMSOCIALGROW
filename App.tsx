@@ -17,15 +17,50 @@ import {
   ArrowPathIcon
 } from '@heroicons/react/24/outline';
 
+// --- Firebase Imports ---
+import { auth, db, signInWithGoogle } from './firebase';
+import { onAuthStateChanged, signOut, signInWithEmailAndPassword, createUserWithEmailAndPassword } from 'firebase/auth';
+import { 
+  doc, getDoc, setDoc, onSnapshot, collection, query, where, orderBy, 
+  updateDoc, addDoc, getDocFromServer, serverTimestamp 
+} from 'firebase/firestore';
+
 // --- Global State & Persistence ---
 
-const STORAGE_KEYS = {
-  USER: 'tsg_v2_auth_session',
-  USERS: 'tsg_v2_users_db',
-  ORDERS: 'tsg_v2_orders_db',
-  TRANSACTIONS: 'tsg_v2_tx_db',
-  TICKETS: 'tsg_v2_tickets_db'
-};
+enum OperationType {
+  CREATE = 'create',
+  UPDATE = 'update',
+  DELETE = 'delete',
+  LIST = 'list',
+  GET = 'get',
+  WRITE = 'write',
+}
+
+interface FirestoreErrorInfo {
+  error: string;
+  operationType: OperationType;
+  path: string | null;
+  authInfo: {
+    userId?: string | null;
+    email?: string | null;
+    emailVerified?: boolean | null;
+  }
+}
+
+function handleFirestoreError(error: unknown, operationType: OperationType, path: string | null) {
+  const errInfo: FirestoreErrorInfo = {
+    error: error instanceof Error ? error.message : String(error),
+    authInfo: {
+      userId: auth.currentUser?.uid,
+      email: auth.currentUser?.email,
+      emailVerified: auth.currentUser?.emailVerified,
+    },
+    operationType,
+    path
+  }
+  console.error('Firestore Error: ', JSON.stringify(errInfo));
+  throw new Error(JSON.stringify(errInfo));
+}
 
 interface AppContextType {
   user: User | null;
@@ -42,6 +77,7 @@ interface AppContextType {
   setDarkMode: (dark: boolean) => void;
   isSidebarOpen: boolean;
   setIsSidebarOpen: (open: boolean) => void;
+  authLoading: boolean;
 }
 
 const AppContext = createContext<AppContextType | undefined>(undefined);
@@ -62,66 +98,96 @@ const generateID = (prefix: string) => `${prefix}-${Math.random().toString(36).s
 // --- App Provider ---
 
 const AppProvider = ({ children }: { children?: React.ReactNode }) => {
-  // Initialize states from LocalStorage for persistence
-  const [user, setUser] = useState<User | null>(() => {
-    try {
-      const saved = localStorage.getItem(STORAGE_KEYS.USER);
-      return saved ? JSON.parse(saved) : null;
-    } catch { return null; }
-  });
-
-  const [users, setUsers] = useState<User[]>(() => {
-    try {
-      const saved = localStorage.getItem(STORAGE_KEYS.USERS);
-      return saved ? JSON.parse(saved) : [];
-    } catch { return []; }
-  });
-
-  const [orders, setOrders] = useState<Order[]>(() => {
-    try {
-      const saved = localStorage.getItem(STORAGE_KEYS.ORDERS);
-      return saved ? JSON.parse(saved) : [];
-    } catch { return []; }
-  });
-
-  const [transactions, setTransactions] = useState<Transaction[]>(() => {
-    try {
-      const saved = localStorage.getItem(STORAGE_KEYS.TRANSACTIONS);
-      return saved ? JSON.parse(saved) : [];
-    } catch { return []; }
-  });
-
-  const [tickets, setTickets] = useState<Ticket[]>(() => {
-    try {
-      const saved = localStorage.getItem(STORAGE_KEYS.TICKETS);
-      return saved ? JSON.parse(saved) : [];
-    } catch { return []; }
-  });
-
+  const [user, setUser] = useState<User | null>(null);
+  const [users, setUsers] = useState<User[]>([]);
+  const [orders, setOrders] = useState<Order[]>([]);
+  const [transactions, setTransactions] = useState<Transaction[]>([]);
+  const [tickets, setTickets] = useState<Ticket[]>([]);
   const [darkMode, setDarkMode] = useState(true);
   const [isSidebarOpen, setIsSidebarOpen] = useState(false);
+  const [authLoading, setAuthLoading] = useState(true);
 
-  // Persistence Effects
+  // Connection Test
   useEffect(() => {
-    if (user) {
-      localStorage.setItem(STORAGE_KEYS.USER, JSON.stringify(user));
-      // Always update the master users list when user changes (e.g., balance updates)
-      setUsers(prev => {
-        const index = prev.findIndex(u => u.id === user.id);
-        if (index === -1) return [...prev, user];
-        const newUsers = [...prev];
-        newUsers[index] = user;
-        return newUsers;
-      });
-    } else {
-      localStorage.removeItem(STORAGE_KEYS.USER);
-    }
-  }, [user]);
+    const testConnection = async () => {
+      try {
+        await getDocFromServer(doc(db, 'test', 'connection'));
+      } catch (error) {
+        if (error instanceof Error && error.message.includes('offline')) {
+          console.error("Please check your Firebase configuration.");
+        }
+      }
+    };
+    testConnection();
+  }, []);
 
-  useEffect(() => localStorage.setItem(STORAGE_KEYS.USERS, JSON.stringify(users)), [users]);
-  useEffect(() => localStorage.setItem(STORAGE_KEYS.ORDERS, JSON.stringify(orders)), [orders]);
-  useEffect(() => localStorage.setItem(STORAGE_KEYS.TRANSACTIONS, JSON.stringify(transactions)), [transactions]);
-  useEffect(() => localStorage.setItem(STORAGE_KEYS.TICKETS, JSON.stringify(tickets)), [tickets]);
+  // Auth Listener
+  useEffect(() => {
+    const unsubscribe = onAuthStateChanged(auth, async (firebaseUser) => {
+      if (firebaseUser) {
+        setAuthLoading(true);
+        const userDocRef = doc(db, 'users', firebaseUser.uid);
+        
+        // Listen to own user document
+        const unsubUser = onSnapshot(userDocRef, (snapshot) => {
+          if (snapshot.exists()) {
+            setUser(snapshot.data() as User);
+          }
+        }, (error) => handleFirestoreError(error, OperationType.GET, `users/${firebaseUser.uid}`));
+
+        setAuthLoading(false);
+        return () => unsubUser();
+      } else {
+        setUser(null);
+        setAuthLoading(false);
+      }
+    });
+
+    return () => unsubscribe();
+  }, []);
+
+  // Global Listeners (Shared data)
+  useEffect(() => {
+    if (!user) {
+      setOrders([]);
+      setTransactions([]);
+      setTickets([]);
+      setUsers([]);
+      return;
+    }
+
+    // Orders Listener
+    let ordersQuery = query(collection(db, 'orders'), orderBy('createdAt', 'desc'));
+    if (user.role !== 'admin') {
+      ordersQuery = query(collection(db, 'orders'), where('userId', '==', user.id), orderBy('createdAt', 'desc'));
+    }
+    const unsubOrders = onSnapshot(ordersQuery, (snapshot) => {
+      setOrders(snapshot.docs.map(doc => doc.data() as Order));
+    }, (error) => handleFirestoreError(error, OperationType.LIST, 'orders'));
+
+    // Transactions Listener
+    let txQuery = query(collection(db, 'transactions'), orderBy('createdAt', 'desc'));
+    if (user.role !== 'admin') {
+      txQuery = query(collection(db, 'transactions'), where('userId', '==', user.id), orderBy('createdAt', 'desc'));
+    }
+    const unsubTx = onSnapshot(txQuery, (snapshot) => {
+      setTransactions(snapshot.docs.map(doc => doc.data() as Transaction));
+    }, (error) => handleFirestoreError(error, OperationType.LIST, 'transactions'));
+
+    // Users Listener (Admin only)
+    let unsubUsers = () => {};
+    if (user.role === 'admin') {
+      unsubUsers = onSnapshot(collection(db, 'users'), (snapshot) => {
+        setUsers(snapshot.docs.map(doc => doc.data() as User));
+      }, (error) => handleFirestoreError(error, OperationType.LIST, 'users'));
+    }
+
+    return () => {
+      unsubOrders();
+      unsubTx();
+      unsubUsers();
+    };
+  }, [user]);
 
   useEffect(() => {
     if (darkMode) document.documentElement.classList.add('dark');
@@ -131,108 +197,83 @@ const AppProvider = ({ children }: { children?: React.ReactNode }) => {
   return (
     <AppContext.Provider value={{ 
       user, setUser, users, setUsers, orders, setOrders, transactions, setTransactions,
-      tickets, setTickets, darkMode, setDarkMode, isSidebarOpen, setIsSidebarOpen
+      tickets, setTickets, darkMode, setDarkMode, isSidebarOpen, setIsSidebarOpen,
+      authLoading
     }}>
       {children}
     </AppContext.Provider>
   );
 };
 
+
 // --- Authentication Flow ---
 
 const LoginPage = () => {
-  const { setUser, users, setUsers } = useApp();
   const navigate = useNavigate();
   const [formData, setFormData] = useState({ email: '', password: '' });
   const [isLogin, setIsLogin] = useState(true);
   const [isGoogleLoading, setIsGoogleLoading] = useState(false);
+  const [authError, setAuthError] = useState('');
 
-  const handleAuth = (e: React.FormEvent) => {
+  const handleAuth = async (e: React.FormEvent) => {
     e.preventDefault();
+    setAuthError('');
     
-    // Admin Check
-    if (isLogin && formData.email.toLowerCase() === ADMIN_CREDENTIALS.email.toLowerCase() && formData.password === ADMIN_CREDENTIALS.password) {
-      const admin: User = {
-        id: 'admin-root',
-        username: 'John (CEO)',
-        email: ADMIN_CREDENTIALS.email,
-        role: 'admin',
-        balance: 9999999,
-        apiKey: 'MASTER_ROOT_KEY_TSG',
-        referralCode: 'ADMIN',
-        referralEarnings: 0,
-        createdAt: new Date().toISOString()
-      };
-      setUser(admin);
-      navigate('/admin');
-      return;
-    }
-
-    const emailKey = formData.email.toLowerCase();
-
-    if (isLogin) {
-      const foundUser = users.find(u => u.email.toLowerCase() === emailKey && u.password === formData.password);
-      if (foundUser) {
-        setUser(foundUser);
+    try {
+      if (isLogin) {
+        await signInWithEmailAndPassword(auth, formData.email, formData.password);
         navigate('/dashboard');
       } else {
-        alert("Invalid credentials. If you are new, please register first.");
-      }
-    } else {
-      if (users.some(u => u.email.toLowerCase() === emailKey)) {
-        alert("This email is already associated with an account. Please log in.");
-        setIsLogin(true);
-        return;
-      }
-      const newUser: User = {
-        id: generateID('USR'),
-        username: formData.email.split('@')[0],
-        email: emailKey,
-        password: formData.password,
-        role: 'user',
-        balance: 0,
-        apiKey: generateID('KEY'),
-        referralCode: generateID('REF'),
-        referralEarnings: 0,
-        createdAt: new Date().toISOString()
-      };
-      setUsers(prev => [...prev, newUser]);
-      setUser(newUser);
-      navigate('/dashboard');
-    }
-  };
-
-  const handleGoogleSignIn = () => {
-    setIsGoogleLoading(true);
-    // Simulate real Google Sign-In interaction
-    setTimeout(() => {
-      const googleEmail = "google_auth_demo@gmail.com";
-      const googleName = "Google User Account";
-      
-      const existingUser = users.find(u => u.email.toLowerCase() === googleEmail.toLowerCase());
-      
-      if (existingUser) {
-        setUser(existingUser);
-      } else {
+        const result = await createUserWithEmailAndPassword(auth, formData.email, formData.password);
         const newUser: User = {
-          id: generateID('G_USR'),
-          username: googleName,
-          email: googleEmail,
-          role: 'user',
+          id: result.user.uid,
+          username: formData.email.split('@')[0],
+          email: formData.email,
+          role: formData.email.toLowerCase() === ADMIN_CREDENTIALS.email.toLowerCase() ? 'admin' : 'user',
           balance: 0,
           apiKey: generateID('KEY'),
           referralCode: generateID('REF'),
           referralEarnings: 0,
           createdAt: new Date().toISOString()
         };
-        setUsers(prev => [...prev, newUser]);
-        setUser(newUser);
+        await setDoc(doc(db, 'users', result.user.uid), newUser);
+        navigate('/dashboard');
       }
-      
-      setIsGoogleLoading(false);
-      navigate('/dashboard');
-    }, 1500);
+    } catch (error: any) {
+      setAuthError(error.message);
+    }
   };
+
+  const handleGoogleSignIn = async () => {
+    setIsGoogleLoading(true);
+    setAuthError('');
+    try {
+      const firebaseUser = await signInWithGoogle();
+      const userDocRef = doc(db, 'users', firebaseUser.uid);
+      const userDoc = await getDoc(userDocRef);
+
+      if (!userDoc.exists()) {
+        const newUser: User = {
+          id: firebaseUser.uid,
+          username: firebaseUser.displayName || firebaseUser.email?.split('@')[0] || 'User',
+          email: firebaseUser.email || '',
+          role: firebaseUser.email?.toLowerCase() === ADMIN_CREDENTIALS.email.toLowerCase() ? 'admin' : 'user',
+          balance: 0,
+          apiKey: generateID('KEY'),
+          referralCode: generateID('REF'),
+          referralEarnings: 0,
+          createdAt: new Date().toISOString()
+        };
+        await setDoc(userDocRef, newUser);
+      }
+      navigate('/dashboard');
+    } catch (error: any) {
+      setAuthError(error.message);
+    } finally {
+      setIsGoogleLoading(false);
+    }
+  };
+
 
   return (
     <div className="min-h-screen flex items-center justify-center bg-[#05060A] p-6 text-white font-['Inter']">
@@ -271,6 +312,7 @@ const LoginPage = () => {
           </div>
 
           <form onSubmit={handleAuth} className="space-y-4">
+            {authError && <p className="text-red-500 text-[10px] font-bold text-center uppercase tracking-widest bg-red-500/10 py-3 rounded-xl border border-red-500/20">{authError}</p>}
             <input 
               required type="email" 
               placeholder="Email Address" 
@@ -343,8 +385,8 @@ const Sidebar = () => {
     { name: 'Support', path: '/support', icon: ChatBubbleLeftRightIcon },
   ];
 
-  const handleLogout = () => {
-    setUser(null);
+  const handleLogout = async () => {
+    await signOut(auth);
     navigate('/login');
   };
 
@@ -381,7 +423,14 @@ const Sidebar = () => {
 };
 
 const PrivateLayout = ({ children }: { children?: React.ReactNode }) => {
-  const { user } = useApp();
+  const { user, authLoading } = useApp();
+  
+  if (authLoading) return (
+    <div className="min-h-screen bg-[#05060A] flex items-center justify-center text-white">
+      <div className="w-12 h-12 border-4 border-purple-600 border-t-transparent rounded-full animate-spin" />
+    </div>
+  );
+
   if (!user) return <Navigate to="/login" replace />;
   return (
     <div className="min-h-screen bg-[#05060A] flex transition-all duration-500 font-['Inter']">
@@ -477,7 +526,7 @@ const Dashboard = () => {
 // --- Order System ---
 
 const NewOrderPage = () => {
-  const { user, setUser, setOrders } = useApp();
+  const { user } = useApp();
   const navigate = useNavigate();
   const [platform, setPlatform] = useState<Platform>(Platform.FACEBOOK);
   const [catId, setCatId] = useState('');
@@ -492,30 +541,38 @@ const NewOrderPage = () => {
   const totalPrice = Math.round((quantity * activeService.pricePer1000) / 1000);
   const canAfford = (user?.balance || 0) >= totalPrice;
 
-  const handleOrder = (e: React.FormEvent) => {
+  const handleOrder = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!user) return;
     if (quantity < activeService.min) return alert(`Minimum is ${activeService.min}`);
     if (!canAfford) return alert("Low balance. Please fund your wallet.");
 
-    const newOrder: Order = {
-      id: generateID('ORD'),
-      userId: user.id,
-      platform,
-      service: activeService.name,
-      link,
-      quantity,
-      price: totalPrice,
-      status: OrderStatus.PENDING,
-      createdAt: new Date().toISOString(),
-      progress: 0,
-      autoRefill: activeService.hasRefill || false
-    };
+    try {
+      const orderId = generateID('ORD');
+      const newOrder: Order = {
+        id: orderId,
+        userId: user.id,
+        platform,
+        service: activeService.name,
+        link,
+        quantity,
+        price: totalPrice,
+        status: OrderStatus.PENDING,
+        createdAt: new Date().toISOString(),
+        progress: 0,
+        autoRefill: activeService.hasRefill || false
+      };
 
-    setUser({...user, balance: user.balance - totalPrice});
-    setOrders(prev => [newOrder, ...prev]);
-    navigate('/congratulations', { state: { service: activeService.name } });
+      await updateDoc(doc(db, 'users', user.id), {
+        balance: user.balance - totalPrice
+      });
+      await setDoc(doc(db, 'orders', orderId), newOrder);
+      navigate('/congratulations', { state: { service: activeService.name } });
+    } catch (error) {
+       handleFirestoreError(error, OperationType.WRITE, 'orders/users');
+    }
   };
+
 
   return (
     <div className="max-w-2xl mx-auto space-y-8 text-white animate-in slide-in-from-bottom-10 duration-500">
@@ -677,11 +734,16 @@ const AdminUsers = () => {
 };
 
 const AdminOrders = () => {
-  const { orders, setOrders } = useApp();
-  const updateStatus = (id: string, s: OrderStatus) => {
-    setOrders(prev => prev.map(o => o.id === id ? {...o, status: s} : o));
-    alert('System status updated.');
+  const { orders } = useApp();
+  const updateStatus = async (id: string, s: OrderStatus) => {
+    try {
+      await updateDoc(doc(db, 'orders', id), { status: s });
+      alert('System status updated.');
+    } catch (error) {
+      handleFirestoreError(error, OperationType.UPDATE, `orders/${id}`);
+    }
   };
+
   return (
     <div className="max-w-4xl mx-auto space-y-6 text-white">
       <h2 className="text-3xl font-black tracking-tight mb-8">System Run Management</h2>
@@ -713,19 +775,33 @@ const AdminOrders = () => {
 };
 
 const AdminPayments = () => {
-  const { transactions, setTransactions, setUsers } = useApp();
+  const { transactions } = useApp();
   const [selectedReceipt, setSelectedReceipt] = useState<string | null>(null);
 
-  const approve = (tx: Transaction) => {
-    setTransactions(prev => prev.map(t => t.id === tx.id ? {...t, status: 'approved'} : t));
-    setUsers(prev => prev.map(u => u.id === tx.userId ? {...u, balance: u.balance + tx.amount} : u));
-    alert('Agent wallet credited successfully.');
+  const approve = async (tx: Transaction) => {
+    try {
+      // Find user to get current balance
+      const userDoc = await getDoc(doc(db, 'users', tx.userId));
+      if (!userDoc.exists()) throw new Error("User not found");
+      const userData = userDoc.data() as User;
+
+      await updateDoc(doc(db, 'transactions', tx.id), { status: 'approved' });
+      await updateDoc(doc(db, 'users', tx.userId), { balance: userData.balance + tx.amount });
+      alert('Agent wallet credited successfully.');
+    } catch (error) {
+      handleFirestoreError(error, OperationType.UPDATE, 'transactions/users');
+    }
   };
 
-  const reject = (tx: Transaction) => {
-    setTransactions(prev => prev.map(t => t.id === tx.id ? {...t, status: 'rejected'} : t));
-    alert('Deposit rejected.');
+  const reject = async (tx: Transaction) => {
+    try {
+      await updateDoc(doc(db, 'transactions', tx.id), { status: 'rejected' });
+      alert('Deposit rejected.');
+    } catch (error) {
+      handleFirestoreError(error, OperationType.UPDATE, `transactions/${tx.id}`);
+    }
   };
+
 
   return (
     <div className="bg-[#0D0F18] p-10 rounded-[45px] border border-white/5 shadow-2xl text-white space-y-10">
@@ -762,7 +838,7 @@ const AdminPayments = () => {
 // --- App Entry ---
 
 const WalletPage = () => {
-  const { user, transactions, setTransactions } = useApp();
+  const { user, transactions } = useApp();
   const [amt, setAmt] = useState(1000);
   const [receipt, setReceipt] = useState<string | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
@@ -779,24 +855,30 @@ const WalletPage = () => {
     }
   };
 
-  const notify = () => {
+  const notify = async () => {
     if (!user) return;
     if (amt < 500) return alert("Minimum deposit is ₦500");
     if (!receipt) return alert("Please upload a screenshot of the successful transfer.");
     
-    const tx: Transaction = { 
-      id: generateID('TX'), 
-      userId: user.id, 
-      username: user.username, 
-      amount: amt, 
-      status: 'pending', 
-      createdAt: new Date().toISOString(),
-      receipt: receipt
-    };
-    setTransactions(prev => [tx, ...prev]);
-    setReceipt(null);
-    alert("Payment submitted to admin verification queue.");
+    try {
+      const txId = generateID('TX');
+      const tx: Transaction = { 
+        id: txId, 
+        userId: user.id, 
+        username: user.username, 
+        amount: amt, 
+        status: 'pending', 
+        createdAt: new Date().toISOString(),
+        receipt: receipt
+      };
+      await setDoc(doc(db, 'transactions', txId), tx);
+      setReceipt(null);
+      alert("Payment submitted to admin verification queue.");
+    } catch (error) {
+      handleFirestoreError(error, OperationType.WRITE, 'transactions');
+    }
   };
+
 
   return (
     <div className="max-w-6xl mx-auto grid lg:grid-cols-5 gap-10 text-white animate-in fade-in duration-500">

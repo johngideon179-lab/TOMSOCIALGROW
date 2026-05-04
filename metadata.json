@@ -1,6 +1,6 @@
 {
   "name": "TomSociaGrow SMM Panel",
-  "description": "A comprehensive Social Media Marketing platform for boosting engagement on Facebook, TikTok, Instagram, and YouTube with automated delivery and Naira-based wallet system.",
+  "description": "A comprehensive Social Media Marketing platform featuring Firebase-powered Google Authentication, real-time Firestore database, and a secure Naira-based wallet system for boosting social media engagement.",
   "requestFramePermissions": [
     "camera"
   ],

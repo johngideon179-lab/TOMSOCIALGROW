@@ -1,0 +1,89 @@
+{
+  "entities": {
+    "User": {
+      "title": "User",
+      "description": "User profile and account information",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "username": { "type": "string" },
+        "email": { "type": "string" },
+        "role": { "type": "string", "enum": ["user", "admin"] },
+        "balance": { "type": "number" },
+        "apiKey": { "type": "string" },
+        "referralCode": { "type": "string" },
+        "referredBy": { "type": "string" },
+        "referralEarnings": { "type": "number" },
+        "createdAt": { "type": "string" }
+      },
+      "required": ["id", "username", "email", "role", "balance", "apiKey", "referralCode", "referralEarnings", "createdAt"]
+    },
+    "Order": {
+      "title": "Order",
+      "description": "SMM service order",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "userId": { "type": "string" },
+        "platform": { "type": "string" },
+        "service": { "type": "string" },
+        "link": { "type": "string" },
+        "quantity": { "type": "number" },
+        "price": { "type": "number" },
+        "status": { "type": "string" },
+        "createdAt": { "type": "string" },
+        "progress": { "type": "number" },
+        "autoRefill": { "type": "boolean" }
+      },
+      "required": ["id", "userId", "platform", "service", "link", "quantity", "price", "status", "createdAt", "progress", "autoRefill"]
+    },
+    "Transaction": {
+      "title": "Transaction",
+      "description": "Wallet funding transaction",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "userId": { "type": "string" },
+        "username": { "type": "string" },
+        "amount": { "type": "number" },
+        "status": { "type": "string", "enum": ["pending", "approved", "rejected"] },
+        "createdAt": { "type": "string" },
+        "receipt": { "type": "string" }
+      },
+      "required": ["id", "userId", "username", "amount", "status", "createdAt"]
+    },
+    "Ticket": {
+      "title": "Ticket",
+      "description": "Support ticket",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "userId": { "type": "string" },
+        "username": { "type": "string" },
+        "subject": { "type": "string" },
+        "status": { "type": "string", "enum": ["Open", "Closed"] },
+        "createdAt": { "type": "string" },
+        "lastUpdate": { "type": "string" }
+      },
+      "required": ["id", "userId", "username", "subject", "status", "createdAt", "lastUpdate"]
+    }
+  },
+  "firestore": {
+    "/users/{userId}": {
+      "schema": "User",
+      "description": "User profile documents"
+    },
+    "/orders/{orderId}": {
+      "schema": "Order",
+      "description": "Order documents"
+    },
+    "/transactions/{transactionId}": {
+      "schema": "Transaction",
+      "description": "Transaction documents"
+    },
+    "/tickets/{ticketId}": {
+      "schema": "Ticket",
+      "description": "Support ticket documents"
+    }
+  }
+}

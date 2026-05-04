@@ -1,0 +1,132 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    match /{document=**} {
+      allow read, write: if false;
+    }
+
+    function isSignedIn() {
+      return request.auth != null;
+    }
+
+    function isVerified() {
+      return isSignedIn() && request.auth.token.email_verified == true;
+    }
+
+    function isAdmin() {
+      return isSignedIn() && (
+        (request.auth.token.email == 'johngideon179@gmail.com' && request.auth.token.email_verified == true) ||
+        exists(/databases/$(database)/documents/admins/$(request.auth.uid))
+      );
+    }
+
+    function isOwner(userId) {
+      return isSignedIn() && request.auth.uid == userId;
+    }
+
+    // --- User Rules ---
+    match /users/{userId} {
+      allow get: if isOwner(userId) || isAdmin();
+      allow list: if isAdmin();
+      allow create: if isOwner(userId) && isValidUser(request.resource.data);
+      allow update: if (isOwner(userId) || isAdmin()) && (
+        isAdmin() || (
+          isValidUser(request.resource.data) &&
+          request.resource.data.diff(resource.data).affectedKeys().hasOnly(['username', 'apiKey', 'referredBy']) &&
+          request.resource.data.id == resource.data.id &&
+          request.resource.data.email == resource.data.email &&
+          request.resource.data.role == resource.data.role &&
+          request.resource.data.balance == resource.data.balance &&
+          request.resource.data.referralCode == resource.data.referralCode &&
+          request.resource.data.referralEarnings == resource.data.referralEarnings &&
+          request.resource.data.createdAt == resource.data.createdAt
+        )
+      );
+    }
+
+    function isValidUser(data) {
+      return data.id is string &&
+             data.username is string &&
+             data.email is string &&
+             data.role in ['user', 'admin'] &&
+             data.balance is number &&
+             data.apiKey is string &&
+             data.referralCode is string &&
+             data.referralEarnings is number &&
+             data.createdAt is string;
+    }
+
+    // --- Order Rules ---
+    match /orders/{orderId} {
+      allow get: if isSignedIn() && (resource.data.userId == request.auth.uid || isAdmin());
+      allow list: if isSignedIn() && (resource.data.userId == request.auth.uid || isAdmin());
+      allow create: if isVerified() && request.resource.data.userId == request.auth.uid && isValidOrder(request.resource.data);
+      allow update: if isAdmin() && isValidOrder(request.resource.data) && (
+        request.resource.data.id == resource.data.id &&
+        request.resource.data.userId == resource.data.userId &&
+        request.resource.data.createdAt == resource.data.createdAt
+      );
+    }
+
+    function isValidOrder(data) {
+      return data.id is string &&
+             data.userId is string &&
+             data.platform is string &&
+             data['service'] is string &&
+             data.link is string &&
+             data.quantity is int &&
+             data.price is int &&
+             data.status is string &&
+             data.createdAt is string &&
+             data.progress is int &&
+             data.autoRefill is bool;
+    }
+
+    // --- Transaction Rules ---
+    match /transactions/{transactionId} {
+      allow get: if isSignedIn() && (resource.data.userId == request.auth.uid || isAdmin());
+      allow list: if isSignedIn() && (resource.data.userId == request.auth.uid || isAdmin());
+      allow create: if isVerified() && request.resource.data.userId == request.auth.uid && isValidTransaction(request.resource.data);
+      allow update: if isAdmin() && isValidTransaction(request.resource.data) && (
+        request.resource.data.id == resource.data.id &&
+        request.resource.data.userId == resource.data.userId &&
+        request.resource.data.createdAt == resource.data.createdAt
+      );
+    }
+
+    function isValidTransaction(data) {
+      return data.id is string &&
+             data.userId is string &&
+             data.username is string &&
+             data.amount is number &&
+             data.status in ['pending', 'approved', 'rejected'] &&
+             data.createdAt is string;
+    }
+
+    // --- Ticket Rules ---
+    match /tickets/{ticketId} {
+      allow get: if isSignedIn() && (resource.data.userId == request.auth.uid || isAdmin());
+      allow list: if isSignedIn() && (resource.data.userId == request.auth.uid || isAdmin());
+      allow create: if isVerified() && request.resource.data.userId == request.auth.uid && isValidTicket(request.resource.data);
+      allow update: if (isOwner(resource.data.userId) || isAdmin()) && isValidTicket(request.resource.data) && (
+        request.resource.data.id == resource.data.id &&
+        request.resource.data.userId == resource.data.userId &&
+        request.resource.data.createdAt == resource.data.createdAt
+      );
+    }
+
+    function isValidTicket(data) {
+      return data.id is string &&
+             data.userId is string &&
+             data.username is string &&
+             data.subject is string &&
+             data.status in ['Open', 'Closed'] &&
+             data.createdAt is string &&
+             data.lastUpdate is string;
+    }
+    
+    match /admins/{adminId} {
+      allow read: if isSignedIn();
+    }
+  }
+}
