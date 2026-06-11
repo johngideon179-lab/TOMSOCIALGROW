@@ -13,8 +13,8 @@ if (!fs.existsSync(publicDir)) {
 }
 
 if (fs.existsSync(sourceIcon)) {
-  fs.copyFileSync(sourceIcon, path.resolve(publicDir, 'icon-192.png'));
-  fs.copyFileSync(sourceIcon, path.resolve(publicDir, 'icon-512.png'));
+  fs.copyFileSync(sourceIcon, path.resolve(publicDir, 'icon-192.jpg'));
+  fs.copyFileSync(sourceIcon, path.resolve(publicDir, 'icon-512.jpg'));
 } else {
   // Back up strategy if source icon isn't present
   console.warn("Source app icon not found; creating fallback icons");
