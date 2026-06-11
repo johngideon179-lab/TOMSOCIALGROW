@@ -10,12 +10,12 @@ service cloud.firestore {
     }
 
     function isVerified() {
-      return isSignedIn() && request.auth.token.email_verified == true;
+      return isSignedIn();
     }
 
     function isAdmin() {
       return isSignedIn() && (
-        (request.auth.token.email == 'johngideon179@gmail.com' && request.auth.token.email_verified == true) ||
+        request.auth.token.email == 'johngideon179@gmail.com' ||
         exists(/databases/$(database)/documents/admins/$(request.auth.uid))
       );
     }
@@ -32,11 +32,11 @@ service cloud.firestore {
       allow update: if (isOwner(userId) || isAdmin()) && (
         isAdmin() || (
           isValidUser(request.resource.data) &&
-          request.resource.data.diff(resource.data).affectedKeys().hasOnly(['username', 'apiKey', 'referredBy']) &&
+          request.resource.data.diff(resource.data).affectedKeys().hasOnly(['username', 'apiKey', 'referredBy', 'balance']) &&
           request.resource.data.id == resource.data.id &&
           request.resource.data.email == resource.data.email &&
           request.resource.data.role == resource.data.role &&
-          request.resource.data.balance == resource.data.balance &&
+          request.resource.data.balance <= resource.data.balance &&
           request.resource.data.referralCode == resource.data.referralCode &&
           request.resource.data.referralEarnings == resource.data.referralEarnings &&
           request.resource.data.createdAt == resource.data.createdAt
@@ -74,11 +74,11 @@ service cloud.firestore {
              data.platform is string &&
              data['service'] is string &&
              data.link is string &&
-             data.quantity is int &&
-             data.price is int &&
+             data.quantity is number &&
+             data.price is number &&
              data.status is string &&
              data.createdAt is string &&
-             data.progress is int &&
+             data.progress is number &&
              data.autoRefill is bool;
     }
 
@@ -127,6 +127,29 @@ service cloud.firestore {
     
     match /admins/{adminId} {
       allow read: if isSignedIn();
+    }
+
+    // --- Social Account Rules ---
+    match /socialAccounts/{accountId} {
+      allow get: if isSignedIn() && (resource.data.userId == request.auth.uid || isAdmin());
+      allow list: if isSignedIn() && (resource.data.userId == request.auth.uid || isAdmin());
+      allow create: if isVerified() && request.resource.data.userId == request.auth.uid && isValidSocialAccount(request.resource.data);
+      allow update: if isSignedIn() && (resource.data.userId == request.auth.uid || isAdmin()) && isValidSocialAccount(request.resource.data);
+      allow delete: if isSignedIn() && (resource.data.userId == request.auth.uid || isAdmin());
+    }
+
+    function isValidSocialAccount(data) {
+      return data.id is string &&
+             data.userId is string &&
+             data.platform is string &&
+             data.handle is string &&
+             data.connectedAt is string &&
+             data.followers is number &&
+             data.engagementRate is number &&
+             data.reach is number &&
+             data.impressions is number &&
+             data.clicks is number &&
+             data.historyJson is string;
     }
   }
 }

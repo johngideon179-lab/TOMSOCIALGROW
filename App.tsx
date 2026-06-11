@@ -4,7 +4,7 @@ import { motion, AnimatePresence } from 'motion/react';
 import { 
   User, Order, OrderStatus, Platform, Transaction, Ticket 
 } from './types';
-import { PLATFORM_LOGOS, PLATFORM_CATEGORIES } from './constants';
+import { PLATFORM_LOGOS, PLATFORM_CATEGORIES, PLATFORM_QUANTITIES } from './constants';
 import { 
   HomeIcon, ShoppingCartIcon, ClockIcon, WalletIcon, 
   ChatBubbleLeftRightIcon, 
@@ -14,8 +14,10 @@ import {
   ClipboardIcon, CodeBracketIcon, SparklesIcon, ShareIcon,
   CommandLineIcon, PencilSquareIcon, ClipboardDocumentCheckIcon,
   ArrowUpTrayIcon, EyeIcon, InformationCircleIcon,
-  ArrowPathIcon
+  ArrowPathIcon, PresentationChartLineIcon
 } from '@heroicons/react/24/outline';
+
+import AnalyticsPage from './AnalyticsPage';
 
 // --- Firebase Imports ---
 import { auth, db, signInWithGoogle } from './firebase';
@@ -312,7 +314,55 @@ const LoginPage = () => {
           </div>
 
           <form onSubmit={handleAuth} className="space-y-4">
-            {authError && <p className="text-red-500 text-[10px] font-bold text-center uppercase tracking-widest bg-red-500/10 py-3 rounded-xl border border-red-500/20">{authError}</p>}
+            {authError && (
+              authError.toLowerCase().includes('unauthorized-domain') ? (
+                <div className="bg-purple-950/40 border border-purple-500/35 p-5 rounded-3xl text-left space-y-4 shadow-inner">
+                  <p className="text-purple-400 text-[10px] font-black uppercase tracking-wider flex items-center gap-2">
+                    <span className="w-1.5 h-1.5 rounded-full bg-purple-500 animate-pulse shrink-0" />
+                    Firebase Authorization Steps Needed
+                  </p>
+                  
+                  <div className="space-y-2 text-[11px] text-gray-300 font-semibold leading-relaxed">
+                    <p>To let <strong className="text-white">ANYONE</strong> continue with Google, follow these simple steps:</p>
+                    
+                    <ol className="list-decimal pl-4 space-y-2 text-gray-400">
+                      <li>
+                        Click the <strong className="text-purple-400">Open Firebase Settings</strong> button below.
+                      </li>
+                      <li>
+                        Scroll down to the <strong className="text-white">Authorized domains</strong> section.
+                      </li>
+                      <li>
+                        Click <strong className="text-purple-400">Add domain</strong> and copy-paste these 2 domains, one by one:
+                        <div className="bg-[#05060A]/80 border border-white/5 p-2 rounded-xl font-mono text-[9px] text-purple-300 space-y-1.5 break-all mt-1 select-all select-text">
+                          <div>1. <span className="text-white">ais-dev-s4awj6r6eplr4dd2pgjeuy-288691445411.europe-west2.run.app</span></div>
+                          <div>2. <span className="text-white">ais-pre-s4awj6r6eplr4dd2pgjeuy-288691445411.europe-west2.run.app</span></div>
+                        </div>
+                      </li>
+                      <li>
+                        Click <strong className="text-white">Add</strong>/<strong>Save</strong>. Return here and sign in instantly!
+                      </li>
+                    </ol>
+                  </div>
+
+                  <div className="pt-2 flex flex-col gap-2">
+                    <a 
+                      href="https://console.firebase.google.com/project/gen-lang-client-0086490370/authentication/settings" 
+                      target="_blank" 
+                      rel="noopener noreferrer" 
+                      className="inline-block text-center w-full py-3.5 bg-purple-600/30 hover:bg-purple-600/40 text-purple-300 hover:text-white rounded-xl text-[10px] font-black uppercase tracking-widest border border-purple-500/30 transition-all font-mono"
+                    >
+                      🔗 Open Firebase Settings
+                    </a>
+                    <div className="text-center text-[8px] text-gray-500 font-bold uppercase tracking-wider mt-1">
+                      Or create an email / password account below!
+                    </div>
+                  </div>
+                </div>
+              ) : (
+                <p className="text-red-500 text-[10px] font-bold text-center uppercase tracking-widest bg-red-500/10 py-3 rounded-xl border border-red-500/20">{authError}</p>
+              )
+            )}
             <input 
               required type="email" 
               placeholder="Email Address" 
@@ -378,6 +428,7 @@ const Sidebar = () => {
     { name: 'Transactions', path: '/admin/payments', icon: BanknotesIcon },
   ] : [
     { name: 'Dashboard', path: '/dashboard', icon: HomeIcon },
+    { name: 'Analytics', path: '/analytics', icon: PresentationChartLineIcon },
     { name: 'New Boost', path: '/new-order', icon: ShoppingCartIcon },
     { name: 'My History', path: '/orders', icon: ClockIcon },
     { name: 'Wallet', path: '/wallet', icon: WalletIcon },
@@ -525,6 +576,29 @@ const Dashboard = () => {
 
 // --- Order System ---
 
+const getBadgeStyles = (badge: string) => {
+  switch (badge) {
+    case 'Most Popular':
+      return { text: '🔥 Most Popular', styles: 'bg-orange-500/10 text-orange-400 border-orange-500/20' };
+    case 'Recommended':
+      return { text: '⭐ Recommended', styles: 'bg-yellow-500/10 text-yellow-400 border-yellow-500/20' };
+    case 'Instant Start':
+      return { text: '⚡ Instant Start', styles: 'bg-cyan-500/10 text-cyan-400 border-cyan-500/20' };
+    case 'VIP':
+      return { text: '👑 VIP Premium', styles: 'bg-pink-500/10 text-pink-400 border-pink-500/20' };
+    case 'Premium':
+      return { text: '💎 Premium Tier', styles: 'bg-blue-500/10 text-blue-400 border-blue-500/20' };
+    case 'Lifetime Refill':
+      return { text: '🛡️ Lifetime Refill', styles: 'bg-green-500/10 text-green-400 border-green-500/20' };
+    case 'High Retention':
+      return { text: '📈 High Retention', styles: 'bg-purple-500/10 text-purple-400 border-purple-500/30' };
+    case 'Non Drop':
+      return { text: '✅ Non Drop', styles: 'bg-emerald-500/10 text-emerald-400 border-emerald-500/20' };
+    default:
+      return { text: '⭐ Recommended', styles: 'bg-purple-500/10 text-purple-400 border-purple-500/20' };
+  }
+};
+
 const NewOrderPage = () => {
   const { user } = useApp();
   const navigate = useNavigate();
@@ -544,10 +618,24 @@ const NewOrderPage = () => {
   const handleOrder = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!user) return;
+    if (!link || !link.startsWith('http')) {
+      return alert('Please enter a valid target link/URL (must start with http:// or https://)');
+    }
     if (quantity < activeService.min) return alert(`Minimum is ${activeService.min}`);
-    if (!canAfford) return alert("Low balance. Please fund your wallet.");
+    if (quantity > activeService.max) return alert(`Maximum is ${activeService.max}`);
 
     try {
+      // Secure check of active balance from database before debiting
+      const userRef = doc(db, 'users', user.id);
+      const userSnap = await getDoc(userRef);
+      if (!userSnap.exists()) {
+        throw new Error("User record not found in the nodes.");
+      }
+      const latestUserData = userSnap.data() as User;
+      if (latestUserData.balance < totalPrice) {
+        return alert("Low balance. Please fund your wallet.");
+      }
+
       const orderId = generateID('ORD');
       const newOrder: Order = {
         id: orderId,
@@ -560,69 +648,296 @@ const NewOrderPage = () => {
         status: OrderStatus.PENDING,
         createdAt: new Date().toISOString(),
         progress: 0,
-        autoRefill: activeService.hasRefill || false
+        autoRefill: activeService.refillStatus !== 'None'
       };
 
-      await updateDoc(doc(db, 'users', user.id), {
-        balance: user.balance - totalPrice
+      const remainingBalance = latestUserData.balance - totalPrice;
+      await updateDoc(userRef, {
+        balance: remainingBalance
       });
       await setDoc(doc(db, 'orders', orderId), newOrder);
-      navigate('/congratulations', { state: { service: activeService.name } });
+
+      navigate('/congratulations', { 
+        state: { 
+          order: newOrder,
+          serviceName: activeService.name, 
+          totalPrice, 
+          newBalance: remainingBalance 
+        } 
+      });
     } catch (error) {
        handleFirestoreError(error, OperationType.WRITE, 'orders/users');
     }
   };
 
+  const badgeInfo = getBadgeStyles(activeService.badge);
+  const quantities = PLATFORM_QUANTITIES[platform];
 
   return (
-    <div className="max-w-2xl mx-auto space-y-8 text-white animate-in slide-in-from-bottom-10 duration-500">
-      <div className="bg-[#0D0F18] rounded-[45px] p-10 border border-white/5 shadow-2xl">
-        <h2 className="text-3xl font-black tracking-tight mb-10">Configure Boost</h2>
-        <div className="space-y-8">
-          <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
-            {Object.values(Platform).map(p => (
-              <button key={p} onClick={() => {setPlatform(p); setCatId(''); setServId('');}} className={`flex flex-col items-center justify-center gap-3 p-5 rounded-3xl border-2 transition-all ${platform === p ? 'bg-purple-600 border-purple-500 scale-105' : 'bg-[#161924] border-transparent text-gray-600'}`}>
-                {PLATFORM_LOGOS[p]}
-                <span className="text-[8px] font-black uppercase tracking-widest">{p}</span>
-              </button>
-            ))}
-          </div>
+    <div className="max-w-6xl mx-auto text-white animate-in slide-in-from-bottom-10 duration-500 pb-12">
+      {/* Title Header */}
+      <div className="mb-8">
+        <h2 className="text-3xl font-black tracking-tight text-white uppercase">Configure SMM Boost</h2>
+        <p className="text-xs text-gray-500 font-semibold mt-1">Deploy high-retention commercial-grade runs to your target URL in real-time</p>
+      </div>
 
-          <div className="space-y-4">
-            <div className="space-y-1">
-              <p className="text-[10px] font-black text-gray-600 uppercase tracking-widest ml-2">Category</p>
-              <select value={catId} onChange={e => {setCatId(e.target.value); setServId('');}} className="w-full bg-[#161924] border-none rounded-2xl px-6 py-4 text-sm font-bold outline-none focus:ring-2 focus:ring-purple-600">
-                {categories.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
-              </select>
-            </div>
-            <div className="space-y-1">
-              <p className="text-[10px] font-black text-gray-600 uppercase tracking-widest ml-2">Package</p>
-              <select value={servId} onChange={e => setServId(e.target.value)} className="w-full bg-[#161924] border-none rounded-2xl px-6 py-4 text-sm font-bold outline-none focus:ring-2 focus:ring-purple-600">
-                {activeCategory.services.map(s => <option key={s.id} value={s.id}>{s.name} (₦{s.pricePer1000}/1k)</option>)}
-              </select>
-            </div>
-            <div className="p-4 bg-purple-600/5 rounded-2xl border border-purple-500/10 text-xs text-gray-400 leading-relaxed italic">
-               "{activeService.description}"
-            </div>
-            <div className="space-y-1">
-              <p className="text-[10px] font-black text-gray-600 uppercase tracking-widest ml-2">Target Link</p>
-              <input required type="url" value={link} onChange={e => setLink(e.target.value)} placeholder="https://..." className="w-full bg-[#161924] border-none rounded-2xl px-6 py-4 text-sm font-bold outline-none" />
-            </div>
-            <div className="space-y-1">
-              <p className="text-[10px] font-black text-gray-600 uppercase tracking-widest ml-2">Quantity (Min: {activeService.min})</p>
-              <input required type="number" min={activeService.min} value={quantity} onChange={e => setQuantity(Number(e.target.value))} className="w-full bg-[#161924] border-none rounded-2xl px-6 py-4 text-sm font-bold outline-none" />
-            </div>
-          </div>
-
-          <div className="bg-purple-600/10 p-6 rounded-3xl border border-purple-500/20 flex justify-between items-center">
-             <div className="space-y-1">
-                <p className="text-[9px] font-black text-gray-500 uppercase">Estimated Total</p>
-                <p className="text-3xl font-black">₦{totalPrice.toLocaleString()}</p>
+      <div className="grid grid-cols-1 lg:grid-cols-12 gap-8 items-start">
+        {/* Left Form: Column 1 */}
+        <div className="lg:col-span-7 bg-[#0D0F18] rounded-[45px] p-8 border border-white/5 shadow-2xl relative overflow-hidden space-y-8">
+          <div className="absolute top-0 right-0 w-64 h-64 bg-purple-600/10 rounded-full blur-[120px] pointer-events-none"></div>
+          
+          {/* Main Platforms Selector */}
+          <div className="space-y-3">
+             <div className="flex justify-between items-center px-1">
+                <span className="text-[10px] font-black text-gray-600 uppercase tracking-widest">Select SMM Platform</span>
+                <span className="text-[9px] text-purple-400 font-extrabold bg-purple-500/10 px-2.5 py-1 rounded-full border border-purple-500/10">Active Pipeline</span>
              </div>
-             {!canAfford && <span className="text-[8px] font-black text-red-500 uppercase bg-red-500/10 px-3 py-1 rounded-full">Insufficient Fund</span>}
+             <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+               {Object.values(Platform).map(p => {
+                 const isSelected = platform === p;
+                 return (
+                   <button 
+                     type="button"
+                     key={p} 
+                     onClick={() => {
+                       setPlatform(p); 
+                       const firstCat = PLATFORM_CATEGORIES[p][0];
+                       setCatId(firstCat.id); 
+                       setServId(firstCat.services[0].id);
+                     }} 
+                     className={`relative flex flex-col items-center justify-center gap-3 p-5 rounded-3xl border-2 transition-all duration-300 overflow-hidden ${
+                       isSelected 
+                         ? 'bg-purple-600/20 border-purple-500 text-white shadow-[0_0_20px_rgba(168,85,247,0.15)] scale-[1.03]' 
+                         : 'bg-[#121420] border-transparent text-gray-500 hover:bg-[#151928]'
+                     }`}
+                   >
+                     {/* Glow Underlay on Selection */}
+                     {isSelected && (
+                       <span className="absolute inset-0 bg-gradient-to-b from-purple-500/10 to-transparent pointer-events-none"></span>
+                     )}
+                     <div className={`transition-transform duration-300 ${isSelected ? 'scale-110 text-purple-400' : 'text-gray-500'}`}>
+                       {PLATFORM_LOGOS[p]}
+                     </div>
+                     <span className="text-[10px] font-black uppercase tracking-widest">{p}</span>
+                   </button>
+                 );
+               })}
+             </div>
           </div>
 
-          <button onClick={handleOrder} className="w-full py-5 bg-purple-600 rounded-2xl font-black text-lg shadow-xl shadow-purple-900/20 hover:bg-purple-700 transition-all">Submit Order</button>
+          <div className="space-y-6">
+            {/* Category Dropdown */}
+            <div className="space-y-2">
+              <label className="text-[10px] font-black text-gray-600 uppercase tracking-widest ml-1 block">Traffic Category</label>
+              <div className="relative">
+                <select 
+                  value={activeCategory.id} 
+                  onChange={e => {
+                    const foundCat = categories.find(c => c.id === e.target.value) || categories[0];
+                    setCatId(foundCat.id); 
+                    setServId(foundCat.services[0].id);
+                  }} 
+                  className="w-full bg-[#161924] border-none text-sm font-bold rounded-2xl px-6 py-4 outline-none focus:ring-2 focus:ring-purple-600 focus:border-transparent transition-all cursor-pointer appearance-none text-white shadow-inner"
+                >
+                  {categories.map(c => (
+                    <option key={c.id} value={c.id}>{c.name}</option>
+                  ))}
+                </select>
+                <div className="absolute right-6 top-1/2 -translate-y-1/2 pointer-events-none text-gray-500">
+                  <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="3" d="M19 9l-7 7-7-7"></path></svg>
+                </div>
+              </div>
+            </div>
+
+            {/* Package / Service Dropdown */}
+            <div className="space-y-2">
+              <label className="text-[10px] font-black text-gray-600 uppercase tracking-widest ml-1 block">Service Package</label>
+              <div className="relative">
+                <select 
+                  value={activeService.id} 
+                  onChange={e => setServId(e.target.value)} 
+                  className="w-full bg-[#161924] border-none text-sm font-bold rounded-2xl px-6 py-4 outline-none focus:ring-2 focus:ring-purple-600 focus:border-transparent transition-all cursor-pointer appearance-none text-white shadow-inner"
+                >
+                  {activeCategory.services.map(s => (
+                    <option key={s.id} value={s.id}>{s.name} (₦{s.pricePer1000.toLocaleString()}/1K)</option>
+                  ))}
+                </select>
+                <div className="absolute right-6 top-1/2 -translate-y-1/2 pointer-events-none text-gray-500">
+                  <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="3" d="M19 9l-7 7-7-7"></path></svg>
+                </div>
+              </div>
+            </div>
+
+            {/* Target Link input */}
+            <div className="space-y-2">
+              <div className="flex justify-between items-center ml-1">
+                <label className="text-[10px] font-black text-gray-600 uppercase tracking-widest block">Target Link</label>
+                <span className="text-[9px] text-purple-400 font-extrabold uppercase">HTTPS Link Target</span>
+              </div>
+              <div className="relative">
+                <input 
+                  required 
+                  type="url" 
+                  value={link} 
+                  onChange={e => setLink(e.target.value)} 
+                  placeholder="Paste target profile, group or post link" 
+                  className="w-full bg-[#161924] border-none rounded-2xl px-6 py-4 text-sm font-bold outline-none focus:ring-2 focus:ring-purple-600 focus:border-transparent transition-all text-white placeholder-gray-600 shadow-inner" 
+                />
+              </div>
+            </div>
+
+            {/* Quantity inputs & selectors */}
+            <div className="space-y-3">
+              <div className="flex justify-between items-center ml-1">
+                <label className="text-[10px] font-black text-gray-600 uppercase tracking-widest block">Available Quantity presets</label>
+                <span className="text-[9px] text-gray-500 font-extrabold uppercase">Min: {activeService.min.toLocaleString()} | Max: {activeService.max.toLocaleString()}</span>
+              </div>
+              
+              {/* Quick Select Buttons Grid */}
+              <div className="grid grid-cols-5 gap-2">
+                {quantities.map(q => {
+                  const isSelected = quantity === q;
+                  const label = q >= 1000000 ? `${q/1000000}M` : q >= 1000 ? `${q/1000}K` : `${q}`;
+                  return (
+                    <button
+                      type="button"
+                      key={q}
+                      onClick={() => setQuantity(q)}
+                      className={`py-2 rounded-lg text-[10px] font-black transition-all border ${
+                        isSelected 
+                          ? 'bg-purple-600 text-white border-purple-500 shadow-md shadow-purple-900/10 scale-[1.05]' 
+                          : 'bg-[#121420] text-gray-400 border-white/5 hover:border-white/10 hover:text-white'
+                      }`}
+                    >
+                      {label}
+                    </button>
+                  );
+                })}
+              </div>
+
+              {/* Precise Quantity input */}
+              <div className="relative mt-2">
+                <input 
+                  required 
+                  type="number" 
+                  min={activeService.min} 
+                  max={activeService.max} 
+                  value={quantity} 
+                  onChange={e => setQuantity(Number(e.target.value))} 
+                  className="w-full bg-[#161924] border-none rounded-2xl px-6 py-4 text-sm font-bold outline-none focus:ring-2 focus:ring-purple-600 focus:border-transparent transition-all text-white shadow-inner" 
+                />
+                <div className="absolute right-5 top-1/2 -translate-y-1/2 text-xs font-extrabold text-gray-500 uppercase tracking-wider">
+                  Units Selection
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        {/* Right Info Panels: Column 2 */}
+        <div className="lg:col-span-5 space-y-6">
+          {/* PACKAGE INFORMATION PANEL */}
+          <div className="bg-[#0D0F18]/95 rounded-[35px] p-6 border border-white/5 shadow-2xl relative overflow-hidden">
+            <h3 className="text-xs font-black tracking-widest text-purple-400 uppercase mb-4 border-b border-white/5 pb-2">Execution Profile</h3>
+            
+            <div className="space-y-4">
+              <div className="flex justify-between items-center border-b border-white/5 pb-3">
+                <span className="text-[10px] text-gray-500 font-extrabold uppercase tracking-wider">Service Quality</span>
+                <span className="text-xs font-bold text-white">{activeService.serviceQuality}</span>
+              </div>
+              <div className="flex justify-between items-center border-b border-white/5 pb-3">
+                <span className="text-[10px] text-gray-500 font-extrabold uppercase tracking-wider">Estimated Delivery</span>
+                <span className="text-xs font-bold text-teal-400">{activeService.deliveryTime}</span>
+              </div>
+              <div className="flex justify-between items-center border-b border-white/5 pb-3">
+                <span className="text-[10px] text-gray-500 font-extrabold uppercase tracking-wider">Refill Status</span>
+                <span className="text-xs font-bold text-purple-450">{activeService.refillStatus}</span>
+              </div>
+              <div className="flex justify-between items-center border-b border-white/5 pb-3">
+                <span className="text-[10px] text-gray-500 font-extrabold uppercase tracking-wider">Recommended Badge</span>
+                <span className={`text-[10px] font-black border uppercase px-2.5 py-0.5 rounded-full ${badgeInfo.styles}`}>
+                  {badgeInfo.text}
+                </span>
+              </div>
+              <div className="flex justify-between items-center pt-1">
+                <span className="text-[10px] text-gray-500 font-extrabold uppercase tracking-wider">Price per Quantity</span>
+                <span className="text-xs font-black text-gray-300">₦{activeService.pricePer1000.toLocaleString()} / 1K</span>
+              </div>
+            </div>
+            
+            <div className="mt-4 p-3 bg-purple-650/5 rounded-xl border border-purple-500/10 text-[11px] text-gray-400 leading-relaxed italic">
+              "{activeService.description}"
+            </div>
+          </div>
+
+          {/* DYNAMIC LIVE ORDER SUMMARY CARD */}
+          <div className="bg-[#0D0F18]/95 rounded-[35px] p-6 border border-white/5 shadow-2xl relative overflow-hidden">
+            <h3 className="text-xs font-black tracking-widest text-white uppercase mb-4 flex items-center justify-between">
+              <span>Order Summary</span>
+              <span className="text-[9px] bg-purple-500/15 text-purple-300 px-2 py-0.5 rounded-full border border-purple-500/10">Summary Card</span>
+            </h3>
+
+            <div className="bg-[#121420] rounded-2xl p-4 border border-white/5 space-y-3 font-mono text-[11px]">
+              <div className="flex justify-between items-center text-gray-400">
+                <span>PLATFORM:</span>
+                <span className="text-white font-bold uppercase">{platform}</span>
+              </div>
+              <div className="flex justify-between items-center text-gray-400">
+                <span>CATEGORY:</span>
+                <span className="text-white font-bold">{activeCategory.name}</span>
+              </div>
+              <div className="flex justify-between items-center text-gray-400">
+                <span>PACKAGE:</span>
+                <span className="text-purple-400 font-bold max-w-[150px] truncate">{activeService.name}</span>
+              </div>
+              <div className="flex justify-between items-center text-gray-400 border-t border-white/5 pt-2 mt-2">
+                <span>QUANTITY:</span>
+                <span className="text-white font-bold">{quantity.toLocaleString()} units</span>
+              </div>
+              <div className="flex justify-between items-center text-gray-400 border-b border-white/5 pb-2">
+                <span>PRICE:</span>
+                <span>₦{activeService.pricePer1000.toLocaleString()} / 1K</span>
+              </div>
+              <div className="flex justify-between items-center text-sm font-black text-white pt-1">
+                <span>TOTAL PRICE:</span>
+                <span className="text-purple-400">₦{totalPrice.toLocaleString()}</span>
+              </div>
+            </div>
+
+            <div className="my-5 p-4 rounded-2xl bg-purple-600/10 border border-purple-500/20 space-y-3">
+              <div className="flex justify-between items-center">
+                <span className="text-[10px] font-black text-gray-400 uppercase">Current Balance</span>
+                <span className="text-sm font-bold">₦{(user?.balance || 0).toLocaleString()}</span>
+              </div>
+              <div className="flex justify-between items-center text-gray-300">
+                <span className="text-[10px] font-black text-gray-500 uppercase">Expected Balance After Run</span>
+                <span className="text-sm font-bold">
+                  ₦{(Math.max(0, (user?.balance || 0) - totalPrice)).toLocaleString()}
+                </span>
+              </div>
+              
+              <div className="pt-2 border-t border-white/5 flex items-center justify-end">
+                {!canAfford ? (
+                  <span className="text-[9px] font-black text-red-500 uppercase bg-red-500/10 border border-red-500/20 px-3 py-1 rounded-full">Insufficient SMM Balance</span>
+                ) : (
+                  <span className="text-[9px] font-black text-green-500 uppercase bg-green-500/10 border border-green-500/20 px-3 py-1 rounded-full">Funds Cleared</span>
+                )}
+              </div>
+            </div>
+
+            <button 
+              type="button"
+              disabled={!canAfford}
+              onClick={handleOrder} 
+              className={`w-full py-5 rounded-2xl font-black text-sm uppercase tracking-widest shadow-xl transition-all duration-300 ${
+                canAfford 
+                  ? 'bg-purple-600 text-white hover:bg-purple-700 active:scale-95 shadow-purple-900/20 shadow-lg cursor-pointer' 
+                  : 'bg-white/5 text-gray-600 border border-transparent cursor-not-allowed'
+              }`}
+            >
+              Submit Order
+            </button>
+          </div>
         </div>
       </div>
     </div>
@@ -734,11 +1049,40 @@ const AdminUsers = () => {
 };
 
 const AdminOrders = () => {
-  const { orders } = useApp();
-  const updateStatus = async (id: string, s: OrderStatus) => {
+  const { orders, users } = useApp();
+
+  const updateStatus = async (order: Order, newStatus: OrderStatus) => {
+    if (order.status === newStatus) return;
+
     try {
-      await updateDoc(doc(db, 'orders', id), { status: s });
-      alert('System status updated.');
+      // If setting to Cancel/Refund status, return funds to the user's balance
+      if (newStatus === OrderStatus.REFUNDED) {
+        const confirmCancel = window.confirm(`Are you sure you want to Cancel and Refund this run? ₦${order.price.toLocaleString()} will be automatically credited back to this user's balance.`);
+        if (!confirmCancel) return;
+
+        const userRef = doc(db, 'users', order.userId);
+        const userSnap = await getDoc(userRef);
+
+        if (userSnap.exists()) {
+          const userData = userSnap.data() as User;
+          const updatedBalance = userData.balance + order.price;
+          await updateDoc(userRef, { balance: updatedBalance });
+          alert(`Ledger Adjusted! Refunded ₦${order.price.toLocaleString()} back to ${userData.username}'s SMM wallet balance.`);
+        } else {
+          alert("Error: Target user node could not be resolved. Status will still transition but no balance was added.");
+        }
+      }
+
+      await updateDoc(doc(db, 'orders', order.id), { status: newStatus });
+      alert('SMM order state updated successfully.');
+    } catch (error) {
+      handleFirestoreError(error, OperationType.UPDATE, `orders/${order.id}`);
+    }
+  };
+
+  const updateProgress = async (id: string, progressVal: number) => {
+    try {
+      await updateDoc(doc(db, 'orders', id), { progress: progressVal });
     } catch (error) {
       handleFirestoreError(error, OperationType.UPDATE, `orders/${id}`);
     }
@@ -746,48 +1090,143 @@ const AdminOrders = () => {
 
   return (
     <div className="max-w-4xl mx-auto space-y-6 text-white">
-      <h2 className="text-3xl font-black tracking-tight mb-8">System Run Management</h2>
-      {orders.map(o => (
-        <div key={o.id} className="bg-[#0D0F18] p-10 rounded-[40px] border border-white/5 shadow-2xl space-y-6">
-           <div className="flex justify-between items-center">
-             <div className="flex items-center gap-5">
-                <div className="text-purple-500">{PLATFORM_LOGOS[o.platform]}</div>
-                <div>
-                  <h4 className="text-lg font-black tracking-tight">{o.service}</h4>
-                  <p className="text-[10px] font-bold text-gray-500 uppercase mt-1">Target: {o.link}</p>
-                </div>
-             </div>
-             <div className="text-right">
-                <p className="text-2xl font-black text-purple-500">₦{o.price.toLocaleString()}</p>
-                <span className="text-[10px] font-black text-gray-600 uppercase tracking-widest">{o.status}</span>
-             </div>
-           </div>
-           <div className="flex flex-wrap gap-2 pt-4 border-t border-white/5">
-              {[OrderStatus.PENDING, OrderStatus.PROCESSING, OrderStatus.COMPLETED, OrderStatus.REFUNDED].map(s => (
-                <button key={s} onClick={() => updateStatus(o.id, s)} className={`px-4 py-2 rounded-xl text-[9px] font-black uppercase transition-all ${o.status === s ? 'bg-purple-600 text-white' : 'bg-white/5 text-gray-600 hover:text-white'}`}>{s}</button>
-              ))}
-           </div>
+      <div className="flex flex-col md:flex-row justify-between md:items-center mb-8 gap-4">
+        <div>
+          <h2 className="text-3xl font-black tracking-tight text-purple-400">System Run Management</h2>
+          <p className="text-xs text-gray-500 font-semibold mt-1">Configure live SMM run steps, update status pipelines, check parameters, and issue refunds</p>
         </div>
-      ))}
-      {orders.length === 0 && <p className="text-center py-20 opacity-20 font-black italic">No active system runs logged.</p>}
+        <div className="bg-[#0D0F18] px-5 py-3 rounded-2xl border border-white/5 text-[10px] font-black uppercase text-gray-400">
+          Global Queue Size: {orders.length}
+        </div>
+      </div>
+
+      {orders.map(o => {
+        const orderUser = users.find(u => u.id === o.userId);
+        return (
+          <div key={o.id} className="bg-[#0D0F18] p-10 rounded-[40px] border border-white/5 shadow-2xl space-y-6 animate-in fade-in duration-300">
+            <div className="flex flex-col md:flex-row justify-between md:items-start gap-6 border-b border-white/5 pb-6">
+              <div className="space-y-4 flex-1 min-w-0">
+                <div className="flex items-center gap-4 flex-wrap">
+                  <div className="text-purple-500 p-3 bg-purple-500/5 border border-purple-500/10 rounded-2xl shrink-0">
+                    {PLATFORM_LOGOS[o.platform]}
+                  </div>
+                  <div>
+                    <h4 className="text-lg font-black tracking-tight text-white">{o.service}</h4>
+                    <p className="text-[10px] text-gray-500 font-bold uppercase mt-1 tracking-wider leading-relaxed">
+                      Reference Node ID: <code className="text-purple-400 font-mono">{o.id}</code>
+                    </p>
+                  </div>
+                </div>
+
+                <div className="bg-[#161924] p-5 rounded-2xl border border-white/5 space-y-3.5 mt-3 text-[11px] font-semibold text-gray-300">
+                  <div className="flex justify-between items-center gap-4">
+                    <span className="text-gray-500 font-bold uppercase text-[9px] shrink-0">Target Link:</span>
+                    <a href={o.link} target="_blank" rel="noopener noreferrer" className="text-purple-400 hover:underline truncate max-w-sm font-mono flex items-center gap-1">
+                      {o.link} 🔗
+                    </a>
+                  </div>
+                  <div className="flex justify-between items-center">
+                    <span className="text-gray-500 font-bold uppercase text-[9px]">Client Profile:</span>
+                    <span className="text-white bg-white/5 px-2.5 py-1 rounded-lg">
+                      {orderUser ? `${orderUser.username} (${orderUser.email})` : `User ID: ${o.userId}`}
+                    </span>
+                  </div>
+                  <div className="flex justify-between items-center">
+                    <span className="text-gray-500 font-bold uppercase text-[9px]">Requested Volume (Qty):</span>
+                    <span className="text-purple-300 font-black text-xs bg-purple-500/10 px-2.5 py-0.5 rounded-lg border border-purple-500/20">
+                      {o.quantity.toLocaleString()} Items
+                    </span>
+                  </div>
+                  <div className="flex justify-between items-center">
+                    <span className="text-gray-500 font-bold uppercase text-[9px]">Registration Timestamp:</span>
+                    <span className="text-gray-400">{new Date(o.createdAt).toLocaleString()}</span>
+                  </div>
+                </div>
+              </div>
+
+              <div className="text-right flex flex-col items-end shrink-0 md:min-w-[160px]">
+                <span className="text-[9px] font-black uppercase text-gray-500 tracking-wider">Estimated Price</span>
+                <p className="text-3xl font-black text-green-400 mt-1">₦{o.price.toLocaleString()}</p>
+                <div className="mt-4">
+                  <span className={`px-4 py-1.5 rounded-full text-[10px] font-black uppercase border ${
+                    o.status === OrderStatus.COMPLETED ? 'bg-green-500/10 text-green-400 border-green-500/20' : 
+                    o.status === OrderStatus.PENDING ? 'bg-yellow-500/10 text-yellow-400 border-yellow-500/20' : 
+                    o.status === OrderStatus.PROCESSING ? 'bg-blue-500/10 text-blue-400 border-blue-500/20' :
+                    o.status === OrderStatus.REFUNDED ? 'bg-red-500/10 text-red-500 border-red-500/20 animate-pulse' :
+                    'bg-gray-500/10 text-gray-400 border-gray-500/20'
+                  }`}>{o.status}</span>
+                </div>
+              </div>
+            </div>
+
+            {/* Slider to adjust the live progress of SMM run */}
+            <div className="space-y-2 bg-[#161924]/45 p-5 rounded-3xl border border-white/5">
+              <div className="flex justify-between items-center">
+                <span className="text-[10px] font-black uppercase text-gray-400 tracking-wider">Configure Live Progress</span>
+                <span className="text-xs font-black text-purple-400">{o.progress || 0}% Complete</span>
+              </div>
+              <div className="flex items-center gap-4 pt-1">
+                <input 
+                  type="range" 
+                  min="0" 
+                  max="100" 
+                  value={o.progress || 0} 
+                  onChange={(e) => updateProgress(o.id, Number(e.target.value))}
+                  className="flex-1 accent-purple-500 h-2 bg-[#161924] rounded-full appearance-none cursor-pointer"
+                />
+              </div>
+            </div>
+
+            {/* Action State Buttons including Refund/Cancel */}
+            <div className="space-y-3 pt-2">
+              <p className="text-[9px] font-black uppercase text-gray-500 tracking-widest">Adjust Run Life cycle Stage:</p>
+              <div className="flex flex-wrap gap-2.5">
+                {[OrderStatus.PENDING, OrderStatus.PROCESSING, OrderStatus.COMPLETED, OrderStatus.REFUNDED].map(s => {
+                  let badgeLabel = s as string;
+                  if (s === OrderStatus.REFUNDED) badgeLabel = "Refund & Cancel ❌";
+                  if (s === OrderStatus.PROCESSING) badgeLabel = "Progressing ⚡";
+                  if (s === OrderStatus.COMPLETED) badgeLabel = "Completed ✅";
+                  if (s === OrderStatus.PENDING) badgeLabel = "Pending ⏳";
+
+                  return (
+                    <button 
+                      key={s} 
+                      onClick={() => updateStatus(o, s)} 
+                      className={`px-5 py-3 rounded-2xl text-[10px] font-black uppercase transition-all ${
+                        o.status === s 
+                          ? 'bg-purple-600 text-white shadow-lg border border-purple-500' 
+                          : 'bg-white/5 text-gray-400 hover:bg-white/10 hover:text-white border border-white/5'
+                      }`}
+                    >
+                      {badgeLabel}
+                    </button>
+                  );
+                })}
+              </div>
+            </div>
+          </div>
+        );
+      })}
+      {orders.length === 0 && <p className="text-center py-20 opacity-20 font-black italic text-lg">No active system runs logged.</p>}
     </div>
   );
 };
 
 const AdminPayments = () => {
-  const { transactions } = useApp();
+  const { transactions, users } = useApp();
   const [selectedReceipt, setSelectedReceipt] = useState<string | null>(null);
+  const [activeTab, setActiveTab] = useState<'pending' | 'history'>('pending');
 
   const approve = async (tx: Transaction) => {
     try {
-      // Find user to get current balance
-      const userDoc = await getDoc(doc(db, 'users', tx.userId));
+      const userRef = doc(db, 'users', tx.userId);
+      const userDoc = await getDoc(userRef);
       if (!userDoc.exists()) throw new Error("User not found");
       const userData = userDoc.data() as User;
 
       await updateDoc(doc(db, 'transactions', tx.id), { status: 'approved' });
-      await updateDoc(doc(db, 'users', tx.userId), { balance: userData.balance + tx.amount });
-      alert('Agent wallet credited successfully.');
+      await updateDoc(userRef, { balance: userData.balance + tx.amount });
+      alert('Agent SMM wallet credited successfully.');
     } catch (error) {
       handleFirestoreError(error, OperationType.UPDATE, 'transactions/users');
     }
@@ -802,35 +1241,113 @@ const AdminPayments = () => {
     }
   };
 
+  const pendingTransactions = transactions.filter(t => t.status === 'pending');
+  const pastTransactions = transactions.filter(t => t.status !== 'pending');
 
   return (
-    <div className="bg-[#0D0F18] p-10 rounded-[45px] border border-white/5 shadow-2xl text-white space-y-10">
-       <h2 className="text-3xl font-black tracking-tight">Payment Verification Gateway</h2>
-       <div className="grid gap-6">
-         {transactions.filter(t => t.status === 'pending').map(t => (
-           <div key={t.id} className="p-10 bg-[#161924] rounded-[40px] flex flex-col lg:flex-row items-center justify-between gap-8 border border-white/5">
-              <div className="flex-1 space-y-4">
-                <div>
-                  <p className="text-4xl font-black text-green-500">₦{t.amount.toLocaleString()}</p>
-                  <p className="text-[10px] font-bold text-gray-500 uppercase mt-2 tracking-widest">{t.username} • REF: {t.id}</p>
-                </div>
-                {t.receipt && <button onClick={() => setSelectedReceipt(t.receipt || null)} className="flex items-center gap-2 text-[10px] font-black text-purple-500 uppercase tracking-widest bg-purple-500/10 px-4 py-2 rounded-xl border border-purple-500/20 hover:bg-purple-600 hover:text-white transition-all"><EyeIcon className="w-4 h-4" /> Inspect Receipt</button>}
-              </div>
-              <div className="flex gap-4">
-                 <button onClick={() => reject(t)} className="px-8 py-4 bg-red-600/10 text-red-500 rounded-2xl font-black text-[10px] uppercase border border-red-500/20 hover:bg-red-600 hover:text-white transition-all">Reject</button>
-                 <button onClick={() => approve(t)} className="px-10 py-4 bg-green-600 rounded-2xl font-black text-[10px] uppercase shadow-lg hover:bg-green-700 transition-all">Approve & Credit</button>
-              </div>
-           </div>
-         ))}
-         {transactions.filter(t => t.status === 'pending').length === 0 && <p className="text-center py-20 opacity-20 font-black italic">No pending audits.</p>}
-       </div>
-       {selectedReceipt && (
-         <div className="fixed inset-0 z-50 flex items-center justify-center p-10 bg-black/95 backdrop-blur-md" onClick={() => setSelectedReceipt(null)}>
-            <div className="relative max-w-4xl w-full bg-[#0D0F18] p-4 rounded-[40px] border border-white/10" onClick={e => e.stopPropagation()}>
-               <img src={selectedReceipt} alt="Receipt Inspector" className="w-full h-auto rounded-[30px] shadow-2xl" />
+    <div className="bg-[#0D0F18] p-10 rounded-[45px] border border-white/5 shadow-2xl text-white space-y-8 animate-in fade-in duration-500">
+      <div className="flex flex-col md:flex-row justify-between md:items-center gap-6 pb-4 border-b border-white/5">
+        <div>
+          <h2 className="text-3xl font-black tracking-tight">Payment Verification Gateway</h2>
+          <p className="text-xs text-gray-500 font-semibold mt-1">Audit capital injections, inspect attachment documents, and view past balance logs</p>
+        </div>
+        
+        {/* Toggle tabs for queue vs ledger */}
+        <div className="flex p-1.5 bg-[#161924] rounded-2xl border border-white/5 self-start md:self-auto">
+          <button 
+            type="button"
+            onClick={() => setActiveTab('pending')}
+            className={`px-5 py-2.5 rounded-xl text-xs font-black uppercase tracking-wider transition-all flex items-center gap-2 ${
+              activeTab === 'pending' ? 'bg-[#800080] text-white shadow-md' : 'text-gray-400 hover:text-white'
+            }`}
+          >
+            Pending Audits <span className="bg-yellow-500/20 text-yellow-400 px-2 py-0.5 rounded-md text-[9px] font-bold">{pendingTransactions.length}</span>
+          </button>
+          <button 
+            type="button"
+            onClick={() => setActiveTab('history')}
+            className={`px-5 py-2.5 rounded-xl text-xs font-black uppercase tracking-wider transition-all flex items-center gap-2 ${
+              activeTab === 'history' ? 'bg-[#800080] text-white shadow-md' : 'text-gray-400 hover:text-white'
+            }`}
+          >
+            Ledger History <span className="bg-purple-500/20 text-purple-400 px-2 py-0.5 rounded-md text-[9px] font-bold">{pastTransactions.length}</span>
+          </button>
+        </div>
+      </div>
+
+      {activeTab === 'pending' ? (
+        <div className="grid gap-6">
+          {pendingTransactions.map(t => {
+            const txUser = users.find(u => u.id === t.userId);
+            return (
+            <div key={t.id} className="p-10 bg-[#161924] rounded-[40px] flex flex-col lg:flex-row items-center justify-between gap-8 border border-white/5 transition-all hover:border-purple-500/20 shadow-xl">
+               <div className="flex-1 space-y-4">
+                 <div>
+                   <p className="text-4xl font-black text-green-500">₦{t.amount.toLocaleString()}</p>
+                   <p className="text-[10px] font-bold text-gray-500 uppercase mt-2 tracking-widest">{t.username} • REF: {t.id} {txUser ? `(${txUser.email})` : ''}</p>
+                 </div>
+                 {t.receipt && (
+                   <button type="button" onClick={() => setSelectedReceipt(t.receipt || null)} className="flex items-center gap-2 text-[10px] font-black text-purple-300 uppercase tracking-widest bg-purple-500/10 px-4 py-2.5 rounded-xl border border-purple-500/20 hover:bg-[#800080]/20 hover:text-white transition-all">
+                     <EyeIcon className="w-4 h-4" /> Inspect Receipt
+                   </button>
+                 )}
+               </div>
+               <div className="flex gap-4">
+                  <button type="button" onClick={() => reject(t)} className="px-8 py-4 bg-red-600/10 text-red-500 rounded-2xl font-black text-[10px] uppercase border border-red-500/20 hover:bg-red-600 hover:text-white transition-all">Reject</button>
+                  <button type="button" onClick={() => approve(t)} className="px-10 py-4 bg-green-600 rounded-2xl font-black text-[10px] uppercase shadow-lg hover:bg-green-700 transition-all">Approve & Credit</button>
+               </div>
             </div>
-         </div>
-       )}
+          );
+        })}
+          {pendingTransactions.length === 0 && <p className="text-center py-20 opacity-20 font-black italic">No pending audits.</p>}
+        </div>
+      ) : (
+        <div className="space-y-4 max-h-[700px] overflow-y-auto pr-2 custom-scrollbar">
+          {pastTransactions.map(t => {
+            const txUser = users.find(u => u.id === t.userId);
+            return (
+              <div key={t.id} className="p-8 bg-[#161924] border border-white/5 rounded-3xl flex flex-col sm:flex-row sm:items-center justify-between gap-6 hover:border-white/10 transition-all text-white">
+                <div className="space-y-2">
+                  <div className="flex items-center gap-3">
+                    <p className="text-2xl font-black text-white">₦{t.amount.toLocaleString()}</p>
+                    <span className={`text-[8px] px-3 py-1 rounded-full font-black uppercase border ${
+                      t.status === 'approved' 
+                        ? 'bg-green-500/10 text-green-500 border-green-500/20' 
+                        : 'bg-red-500/10 text-red-500 border-red-500/20'
+                    }`}>
+                      {t.status}
+                    </span>
+                  </div>
+                  <div className="text-[10px] font-bold text-gray-500 uppercase tracking-widest leading-relaxed">
+                    User: <strong className="text-gray-300">{t.username}</strong> {txUser ? `(${txUser.email})` : ''} 
+                    <span className="text-purple-400 font-mono block mt-1">Ref Node: {t.id}</span>
+                  </div>
+                  <p className="text-[9px] font-semibold text-gray-400">Timestamp: {new Date(t.createdAt).toLocaleString()}</p>
+                </div>
+
+                <div className="flex items-center gap-3">
+                  {t.receipt && (
+                    <button type="button" onClick={() => setSelectedReceipt(t.receipt || null)} className="flex items-center gap-2 text-[9px] font-black text-gray-400 hover:text-white uppercase tracking-widest bg-white/5 px-4 py-2 rounded-xl border border-white/5 hover:bg-white/10 transition-all">
+                      <EyeIcon className="w-3.5 h-3.5" /> View Receipt
+                    </button>
+                  )}
+                </div>
+              </div>
+            );
+          })}
+          {pastTransactions.length === 0 && (
+            <p className="text-center py-20 opacity-20 font-black italic text-lg">No historical transaction logs found.</p>
+          )}
+        </div>
+      )}
+
+      {selectedReceipt && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-10 bg-black/95 backdrop-blur-md" onClick={() => setSelectedReceipt(null)}>
+           <div className="relative max-w-4xl w-full bg-[#0D0F18] p-4 rounded-[40px] border border-white/10" onClick={e => e.stopPropagation()}>
+              <img src={selectedReceipt} alt="Receipt Inspector" className="w-full h-auto max-h-[80vh] object-contain rounded-[30px] shadow-2xl mx-auto" />
+           </div>
+        </div>
+      )}
     </div>
   );
 };
@@ -1008,12 +1525,63 @@ const SupportPage = () => {
 };
 
 const CongratulationsPage = () => {
+  const location = useLocation();
+  const { order, serviceName, totalPrice, newBalance } = location.state || {};
+
   return (
-    <div className="min-h-[70vh] flex flex-col items-center justify-center p-6 text-center text-white">
-      <div className="w-24 h-24 bg-green-500/10 rounded-[35px] flex items-center justify-center mb-8 border border-green-500/20 shadow-2xl animate-bounce"><CheckIcon className="w-12 h-12 text-green-500" /></div>
-      <h2 className="text-5xl font-black tracking-tighter mb-4">Run Initialized!</h2>
-      <p className="text-gray-400 max-w-sm mb-12 font-medium">Your global boost is now processing in our priority engine. Expect progress updates within minutes.</p>
-      <Link to="/orders" className="bg-purple-600 px-12 py-5 rounded-3xl font-black text-sm uppercase tracking-widest shadow-xl shadow-purple-900/20 hover:scale-105 transition-transform">Audit Status</Link>
+    <div className="min-h-[75vh] flex flex-col items-center justify-center p-6 text-center text-white max-w-xl mx-auto">
+      <div className="w-24 h-24 bg-green-500/10 border-2 border-green-500/30 rounded-[35px] flex items-center justify-center mb-8 shadow-[0_0_50px_rgba(34,197,94,0.15)] animate-pulse">
+        <CheckIcon className="w-12 h-12 text-green-500" />
+      </div>
+      
+      <h2 className="text-3xl font-black tracking-tight text-white uppercase">SMM Order Deployed!</h2>
+      <p className="text-gray-400 max-w-md mt-2 mb-8 text-xs font-semibold leading-relaxed">Your order is now in progress and running safely in our premier high-priority execution servers.</p>
+
+      {/* Reciept Widget */}
+      {order && (
+        <div className="w-full bg-[#0D0F18] border border-white/5 rounded-[30px] p-6 mb-8 text-left space-y-4 shadow-xl">
+          <div className="flex justify-between items-center text-xs">
+            <span className="text-gray-500 font-bold uppercase tracking-wider">Order Reference</span>
+            <span className="font-mono text-purple-400 font-extrabold">{order.id}</span>
+          </div>
+          <div className="flex justify-between items-center text-xs border-b border-white/5 pb-2">
+            <span className="text-gray-500 font-bold uppercase tracking-wider">Platform Base</span>
+            <span className="text-white font-extrabold">{order.platform}</span>
+          </div>
+          
+          <div className="space-y-1">
+            <span className="text-[10px] text-gray-500 font-bold uppercase tracking-wider block">Deployed Service</span>
+            <p className="text-xs text-purple-300 font-black leading-tight">{order.service}</p>
+          </div>
+
+          <div className="space-y-1 border-t border-white/5 pt-2">
+            <span className="text-[10px] text-gray-500 font-bold uppercase tracking-wider block">Target Link</span>
+            <a href={order.link} target="_blank" rel="noopener noreferrer" className="text-xs text-white underline hover:text-purple-400 font-mono truncate block">
+              {order.link}
+            </a>
+          </div>
+
+          <div className="grid grid-cols-2 gap-4 border-t border-white/5 pt-2 mt-2">
+            <div>
+              <span className="text-[10px] text-gray-500 font-bold uppercase tracking-wider block">Volume Deployed</span>
+              <span className="text-xs font-black text-white">{order.quantity.toLocaleString()} units</span>
+            </div>
+            <div>
+              <span className="text-[10px] text-gray-500 font-bold uppercase tracking-wider block">Deducted Wallet Amount</span>
+              <span className="text-xs font-black text-purple-400">₦{order.price.toLocaleString()}</span>
+            </div>
+          </div>
+        </div>
+      )}
+
+      <div className="flex gap-4 w-full">
+        <Link to="/orders" className="flex-1 text-center py-4 bg-purple-600 rounded-2xl font-black text-xs uppercase tracking-widest shadow-xl shadow-purple-900/10 hover:brightness-105 active:scale-95 transition-transform">
+          Audit Run Status
+        </Link>
+        <Link to="/new-order" className="flex-1 text-center py-4 bg-[#121420] border border-white/5 rounded-2xl font-black text-xs uppercase tracking-widest hover:bg-white/5 active:scale-95 transition-transform text-gray-300">
+          Place Another Order
+        </Link>
+      </div>
     </div>
   );
 };
@@ -1025,6 +1593,7 @@ export default function App() {
         <Routes>
           <Route path="/login" element={<LoginPage />} />
           <Route path="/dashboard" element={<PrivateLayout><Dashboard /></PrivateLayout>} />
+          <Route path="/analytics" element={<PrivateLayout><AnalyticsPage /></PrivateLayout>} />
           <Route path="/new-order" element={<PrivateLayout><NewOrderPage /></PrivateLayout>} />
           <Route path="/orders" element={<PrivateLayout><OrderHistory /></PrivateLayout>} />
           <Route path="/wallet" element={<PrivateLayout><WalletPage /></PrivateLayout>} />

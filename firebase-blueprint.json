@@ -66,6 +66,26 @@
         "lastUpdate": { "type": "string" }
       },
       "required": ["id", "userId", "username", "subject", "status", "createdAt", "lastUpdate"]
+    },
+    "SocialAccount": {
+      "title": "SocialAccount",
+      "description": "Connected social media account analytics details",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "userId": { "type": "string" },
+        "platform": { "type": "string" },
+        "handle": { "type": "string" },
+        "avatarUrl": { "type": "string" },
+        "connectedAt": { "type": "string" },
+        "followers": { "type": "number" },
+        "engagementRate": { "type": "number" },
+        "reach": { "type": "number" },
+        "impressions": { "type": "number" },
+        "clicks": { "type": "number" },
+        "historyJson": { "type": "string" }
+      },
+      "required": ["id", "userId", "platform", "handle", "connectedAt", "followers", "engagementRate", "reach", "impressions", "clicks", "historyJson"]
     }
   },
   "firestore": {
@@ -84,6 +104,10 @@
     "/tickets/{ticketId}": {
       "schema": "Ticket",
       "description": "Support ticket documents"
+    },
+    "/socialAccounts/{accountId}": {
+      "schema": "SocialAccount",
+      "description": "Connected social account documents"
     }
   }
 }

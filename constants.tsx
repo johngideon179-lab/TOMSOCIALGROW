@@ -1,4 +1,3 @@
-
 import React from 'react';
 import { Platform } from './types';
 
@@ -17,7 +16,10 @@ export interface ServiceDefinition {
   description: string;
   min: number;
   max: number;
-  hasRefill?: boolean;
+  deliveryTime: string;
+  refillStatus: string;
+  serviceQuality: string;
+  badge: 'Most Popular' | 'Recommended' | 'Instant Start' | 'VIP' | 'Premium' | 'Lifetime Refill' | 'High Retention' | 'Non Drop';
 }
 
 export interface ServiceCategory {
@@ -26,70 +28,152 @@ export interface ServiceCategory {
   services: ServiceDefinition[];
 }
 
+// --- Dynamic Generator Helpers ---
+
+const generateFacebookPackages = (categoryName: string, prefixId: string): ServiceDefinition[] => {
+  const templates = [
+    { suffix: '[Real/Active]', price: 1100, delivery: '0–24 Hours', refill: '30 Days Refill', quality: 'Real Active Users', badge: 'Recommended' },
+    { suffix: '[Premium]', price: 1500, delivery: '1–12 Hours', refill: '90 Days Refill', quality: 'High-Tier Premium Profiles', badge: 'Premium' },
+    { suffix: '[VIP]', price: 2500, delivery: 'Instant (1-5m)', refill: 'Lifetime Refill', quality: 'Elite VIP Profiles', badge: 'VIP' },
+    { suffix: '[Worldwide]', price: 1200, delivery: '0–6 Hours', refill: '30 Days Refill', quality: 'Worldwide Accounts', badge: 'Most Popular' },
+    { suffix: '[Lifetime Refill]', price: 1800, delivery: '0–12 Hours', refill: 'Lifetime Guarantee', quality: 'Guaranteed No-Drop', badge: 'Lifetime Refill' },
+    { suffix: '[30 Days Refill]', price: 1400, delivery: '1-3 Hours', refill: '30 Days Refill', quality: 'Stable Delivery Profiles', badge: 'Recommended' },
+    { suffix: '[Instant Start]', price: 1300, delivery: 'Instant Delivery', refill: '30 Days Refill', quality: 'Lightning Fast Acceleration', badge: 'Instant Start' },
+    { suffix: '[Non Drop]', price: 1600, delivery: '2–12 Hours', refill: 'Lifetime Guarantee', quality: 'Stable Fixed Volume', badge: 'Non Drop' }
+  ];
+  return templates.map((t, idx) => ({
+    id: `fb_${prefixId}_p${idx + 1}`,
+    name: `${categoryName} ${t.suffix}`,
+    pricePer1000: t.price,
+    description: `Enterprise-grade ${categoryName.toLowerCase()} SMM pipeline. Monitored server allocation with immediate startup window. Safe protocols.`,
+    min: 100,
+    max: 100000,
+    deliveryTime: t.delivery,
+    refillStatus: t.refill,
+    serviceQuality: t.quality,
+    badge: t.badge as any
+  }));
+};
+
+const generateInstagramPackages = (categoryName: string, prefixId: string): ServiceDefinition[] => {
+  const templates = [
+    { suffix: '[Real/Active]', price: 1200, delivery: '0–12 Hours', refill: '30 Days Refill', quality: 'Verified Real Audience', badge: 'Most Popular' },
+    { suffix: '[Premium]', price: 1600, delivery: '0–4 Hours', refill: '60 Days Refill', quality: 'SaaS Premium Quality', badge: 'Premium' },
+    { suffix: '[VIP]', price: 2400, delivery: 'Instant (1m)', refill: 'Lifetime Refill', quality: 'Gold Certified VIPs', badge: 'VIP' },
+    { suffix: '[Worldwide]', price: 1150, delivery: '1–6 Hours', refill: '15 Days Refill', quality: 'Global Audience Profiles', badge: 'Most Popular' },
+    { suffix: '[Lifetime Refill]', price: 1900, delivery: '0–24 Hours', refill: 'Lifetime Guarantee', quality: 'Permanent Non-Drop', badge: 'Lifetime Refill' },
+    { suffix: '[30 Days Refill]', price: 1300, delivery: '0–3 Hours', refill: '30 Days Refill', quality: 'Stable Growth Metrics', badge: 'Recommended' },
+    { suffix: '[Instant Start]', price: 1250, delivery: 'Instant Launch', refill: '30 Days Refill', quality: 'Extreme Execution Speed', badge: 'Instant Start' },
+    { suffix: '[High Retention]', price: 1500, delivery: '0–8 Hours', refill: '45 Days Refill', quality: 'Audiences with High Retention', badge: 'High Retention' },
+    { suffix: '[Non Drop]', price: 1800, delivery: '2–12 Hours', refill: 'Lifetime Guarantee', quality: 'Organic Persistent Volumes', badge: 'Non Drop' }
+  ];
+  return templates.map((t, idx) => ({
+    id: `ig_${prefixId}_p${idx + 1}`,
+    name: `${categoryName} ${t.suffix}`,
+    pricePer1000: t.price,
+    description: `Premium algorithms targeting active ${categoryName.toLowerCase()} streams. Organic feed delivery and secure transaction flow.`,
+    min: 100,
+    max: 100000,
+    deliveryTime: t.delivery,
+    refillStatus: t.refill,
+    serviceQuality: t.quality,
+    badge: t.badge as any
+  }));
+};
+
+const generateTikTokPackages = (categoryName: string, prefixId: string): ServiceDefinition[] => {
+  const templates = [
+    { suffix: '[Real/Active]', price: 1300, delivery: '0–24 Hours', refill: '45 Days Refill', quality: 'Organic FYP Interactions', badge: 'Recommended' },
+    { suffix: '[Premium]', price: 1700, delivery: '2–12 Hours', refill: '90 Days Refill', quality: 'Premium HQ Accounts', badge: 'Premium' },
+    { suffix: '[VIP]', price: 2600, delivery: 'Instant Delivery', refill: 'Lifetime Guarantee', quality: 'VIP Creator Stream Users', badge: 'VIP' },
+    { suffix: '[Lifetime Refill]', price: 2000, delivery: '1–24 Hours', refill: 'Lifetime Guarantee', quality: 'Permanent Social Base', badge: 'Lifetime Refill' },
+    { suffix: '[Instant Start]', price: 1400, delivery: 'Instant (2m)', refill: '30 Days Refill', quality: 'Lightning Delivery Speed', badge: 'Instant Start' },
+    { suffix: '[High Retention]', price: 1600, delivery: '1–12 Hours', refill: '45 Days Refill', quality: 'Sustained View Channels', badge: 'High Retention' },
+    { suffix: '[Non Drop]', price: 1900, delivery: '2–24 Hours', refill: 'Lifetime Guarantee', quality: 'Zero Leak Volumes', badge: 'Non Drop' }
+  ];
+  return templates.map((t, idx) => ({
+    id: `tk_${prefixId}_p${idx + 1}`,
+    name: `${categoryName} ${t.suffix}`,
+    pricePer1000: t.price,
+    description: `High retention ${categoryName.toLowerCase()} optimization for viral expansion. Bypasses standard algorithmic delays immediately.`,
+    min: 100,
+    max: 1000000,
+    deliveryTime: t.delivery,
+    refillStatus: t.refill,
+    serviceQuality: t.quality,
+    badge: t.badge as any
+  }));
+};
+
+const generateYouTubePackages = (categoryName: string, prefixId: string): ServiceDefinition[] => {
+  const templates = [
+    { suffix: '[Real]', price: 4500, delivery: '1–5 Days', refill: '90 Days Refill', quality: 'Monetization-Approved Real Users', badge: 'Recommended' },
+    { suffix: '[Premium]', price: 5500, delivery: '1–3 Days', refill: 'Lifetime Guarantee', quality: 'Monetization Partner Channels', badge: 'Premium' },
+    { suffix: '[VIP]', price: 8000, delivery: 'Instant Kickoff', refill: 'Lifetime Guarantee', quality: 'VIP Verified Channels', badge: 'VIP' },
+    { suffix: '[Lifetime Refill]', price: 6500, delivery: '1–4 Days', refill: 'Lifetime Guarantee', quality: 'Solid Stable Subscriptions', badge: 'Lifetime Refill' },
+    { suffix: '[30 Days Refill]', price: 5000, delivery: '1–2 Days', refill: '30 Days Refill', quality: 'Standard Social Profiles', badge: 'Recommended' },
+    { suffix: '[Instant Start]', price: 4800, delivery: 'Instant Start', refill: '45 Days Refill', quality: 'High-Velocity Partners', badge: 'Instant Start' }
+  ];
+  return templates.map((t, idx) => ({
+    id: `yt_${prefixId}_p${idx + 1}`,
+    name: `${categoryName} ${t.suffix}`,
+    pricePer1000: t.price,
+    description: `Safe monetization metrics for your YouTube channel. Full retention parameters configured automatically. Secure routing.`,
+    min: 100,
+    max: 1000000,
+    deliveryTime: t.delivery,
+    refillStatus: t.refill,
+    serviceQuality: t.quality,
+    badge: t.badge as any
+  }));
+};
+
+// --- Platform Categories Mapping ---
+
 export const PLATFORM_CATEGORIES: Record<Platform, ServiceCategory[]> = {
   [Platform.FACEBOOK]: [
-    {
-      id: 'fb_f',
-      name: 'Facebook Followers',
-      services: [
-        { id: 'fb_f1', name: 'Profile Followers [Real/Active]', pricePer1000: 1100, description: 'High-quality followers for personal profiles. No password required.', min: 50, max: 500000 },
-        { id: 'fb_f2', name: 'Page Followers & Likes [Premium]', pricePer1000: 1500, description: 'Increase your page authority with stable followers.', min: 100, max: 250000, hasRefill: true }
-      ]
-    },
-    {
-      id: 'fb_e',
-      name: 'Facebook Engagement',
-      services: [
-        { id: 'fb_l1', name: 'Post Likes [Instant Delivery]', pricePer1000: 200, description: 'Fast likes for any public post or photo.', min: 50, max: 100000 },
-        { id: 'fb_v1', name: 'Video Views [High Retention]', pricePer1000: 80, description: 'Boost your video reach and viral potential.', min: 100, max: 1000000 }
-      ]
-    }
+    { id: 'fb_f', name: 'Followers', services: generateFacebookPackages('Profile Followers', 'f') },
+    { id: 'fb_pl', name: 'Page Likes', services: generateFacebookPackages('Page Likes', 'pl') },
+    { id: 'fb_l', name: 'Post Likes', services: generateFacebookPackages('Post Likes', 'l') },
+    { id: 'fb_s', name: 'Post Shares', services: generateFacebookPackages('Post Shares', 's') },
+    { id: 'fb_c', name: 'Comments', services: generateFacebookPackages('Comments', 'c') },
+    { id: 'fb_v', name: 'Video Views', services: generateFacebookPackages('Video Views', 'v') },
+    { id: 'fb_sv', name: 'Story Views', services: generateFacebookPackages('Story Views', 'sv') }
   ],
   [Platform.INSTAGRAM]: [
-    {
-      id: 'ig_f',
-      name: 'Instagram Followers',
-      services: [
-        { id: 'ig_f1', name: 'Followers [HQ - Guaranteed]', pricePer1000: 1100, description: 'High quality accounts with 90-day refill.', min: 50, max: 500000, hasRefill: true },
-        { id: 'ig_f2', name: 'Followers [Real & Targeted]', pricePer1000: 2800, description: 'Premium active accounts for the best engagement.', min: 50, max: 100000, hasRefill: true }
-      ]
-    },
-    {
-      id: 'ig_e',
-      name: 'Instagram Engagement',
-      services: [
-        { id: 'ig_l1', name: 'Likes [Impression + Reach]', pricePer1000: 150, description: 'Boosts your post to the explore page.', min: 50, max: 50000 },
-        { id: 'ig_v1', name: 'Reels Views [Viral Package]', pricePer1000: 60, description: 'Ultra fast views to trigger the IG algorithm.', min: 100, max: 5000000 }
-      ]
-    }
+    { id: 'ig_f', name: 'Followers', services: generateInstagramPackages('Followers', 'f') },
+    { id: 'ig_l', name: 'Likes', services: generateInstagramPackages('Likes', 'l') },
+    { id: 'ig_rv', name: 'Reels Views', services: generateInstagramPackages('Reels Views', 'rv') },
+    { id: 'ig_sv', name: 'Story Views', services: generateInstagramPackages('Story Views', 'sv') },
+    { id: 'ig_c', name: 'Comments', services: generateInstagramPackages('Comments', 'c') },
+    { id: 'ig_sa', name: 'Saves', services: generateInstagramPackages('Saves', 'sa') },
+    { id: 'ig_pv', name: 'Profile Visits', services: generateInstagramPackages('Profile Visits', 'pv') }
   ],
   [Platform.TIKTOK]: [
-    {
-      id: 'tk_f',
-      name: 'TikTok Growth',
-      services: [
-        { id: 'tk_f1', name: 'Followers [Global - No Drop]', pricePer1000: 1200, description: 'Fast and stable followers for your profile.', min: 100, max: 200000, hasRefill: true },
-        { id: 'tk_l1', name: 'Likes [Active Accounts]', pricePer1000: 300, description: 'Heart likes from real users.', min: 50, max: 100000 }
-      ]
-    },
-    {
-      id: 'tk_v',
-      name: 'TikTok Engagement',
-      services: [
-        { id: 'tk_v1', name: 'Views [100M+ Monthly Speed]', pricePer1000: 40, description: 'The fastest views on the market.', min: 1000, max: 100000000 }
-      ]
-    }
+    { id: 'tk_f', name: 'Followers', services: generateTikTokPackages('Followers', 'f') },
+    { id: 'tk_l', name: 'Likes', services: generateTikTokPackages('Likes', 'l') },
+    { id: 'tk_v', name: 'Video Views', services: generateTikTokPackages('Video Views', 'v') },
+    { id: 'tk_s', name: 'Shares', services: generateTikTokPackages('Shares', 's') },
+    { id: 'tk_c', name: 'Comments', services: generateTikTokPackages('Comments', 'c') },
+    { id: 'tk_fa', name: 'Favorites', services: generateTikTokPackages('Favorites', 'fa') },
+    { id: 'tk_lv', name: 'Live Views', services: generateTikTokPackages('Live Views', 'lv') }
   ],
   [Platform.YOUTUBE]: [
-    {
-      id: 'yt_s',
-      name: 'YouTube Channel',
-      services: [
-        { id: 'yt_s1', name: 'Subscribers [Monetization Safe]', pricePer1000: 4500, description: 'Organic-style subscribers to help you monetize.', min: 50, max: 20000, hasRefill: true },
-        { id: 'yt_v1', name: 'Views [Non-Drop Watch Time]', pricePer1000: 1800, description: 'Help fulfill 4000h watch time requirement.', min: 1000, max: 1000000, hasRefill: true }
-      ]
-    }
+    { id: 'yt_sub', name: 'Subscribers', services: generateYouTubePackages('Subscribers', 'sub') },
+    { id: 'yt_v', name: 'Video Views', services: generateYouTubePackages('Video Views', 'v') },
+    { id: 'yt_sv', name: 'Shorts Views', services: generateYouTubePackages('Shorts Views', 'sv') },
+    { id: 'yt_l', name: 'Likes', services: generateYouTubePackages('Likes', 'l') },
+    { id: 'yt_c', name: 'Comments', services: generateYouTubePackages('Comments', 'c') },
+    { id: 'yt_wh', name: 'Watch Hours', services: generateYouTubePackages('Watch Hours', 'wh') }
   ]
+};
+
+// --- Platform Available Quantities mapping ---
+export const PLATFORM_QUANTITIES: Record<Platform, number[]> = {
+  [Platform.FACEBOOK]: [100, 250, 500, 1000, 2000, 5000, 10000, 20000, 50000, 100000],
+  [Platform.INSTAGRAM]: [100, 250, 500, 1000, 2000, 5000, 10000, 20000, 50000, 100000],
+  [Platform.TIKTOK]: [100, 250, 500, 1000, 2000, 5000, 10000, 20000, 50000, 100000, 500000, 1000000],
+  [Platform.YOUTUBE]: [100, 250, 500, 1000, 2000, 5000, 10000, 20000, 50000, 100000, 500000, 1000000]
 };
 
 export const PLATFORM_LOGOS: Record<Platform, React.ReactNode> = {

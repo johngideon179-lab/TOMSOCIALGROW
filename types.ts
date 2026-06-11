@@ -69,3 +69,27 @@ export interface AffiliateStats {
   registrations: number;
   earnings: number;
 }
+
+export interface SocialHistoryPoint {
+  date: string;
+  followers: number;
+  engagementRate: number;
+  reach: number;
+  impressions: number;
+  clicks: number;
+}
+
+export interface SocialAccount {
+  id: string;
+  userId: string;
+  platform: Platform;
+  handle: string;
+  avatarUrl?: string;
+  connectedAt: string;
+  followers: number;
+  engagementRate: number;
+  reach: number;
+  impressions: number;
+  clicks: number;
+  historyJson: string; // JSON string of SocialHistoryPoint[]
+}
