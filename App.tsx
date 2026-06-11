@@ -341,8 +341,11 @@ const LoginPage = () => {
                               <span className="text-white font-black text-xs select-all">{window.location.hostname}</span>
                             </div>
                           )}
-                          <div>• <span className="text-white">ais-dev-s4awj6r6eplr4dd2pgjeuy-288691445411.europe-west2.run.app</span></div>
-                          <div>• <span className="text-white">ais-pre-s4awj6r6eplr4dd2pgjeuy-288691445411.europe-west2.run.app</span></div>
+                          <div>• <span className="text-white">ais-pub-s4awj6r6eplr4dd2pgjeuy-288691445411.europe-west2.run.app</span> <span className="text-[8px] bg-emerald-500/10 text-emerald-400 border border-emerald-500/10 px-1 py-0.2 rounded font-sans uppercase font-black">Published Prod</span></div>
+                          <div>• <span className="text-white">ais-dev-s4awj6r6eplr4dd2pgjeuy-288691445411.europe-west2.run.app</span> <span className="text-[8px] bg-[#1a1b26] text-gray-500 border border-white/5 px-1 py-0.2 rounded font-sans uppercase font-black">Development</span></div>
+                          <div>• <span className="text-white">ais-pre-s4awj6r6eplr4dd2pgjeuy-288691445411.europe-west2.run.app</span> <span className="text-[8px] bg-[#1a1b26] text-gray-500 border border-white/5 px-1 py-0.2 rounded font-sans uppercase font-black">Preview</span></div>
+                          <div>• <span className="text-white">ais-shared-s4awj6r6eplr4dd2pgjeuy-288691445411.europe-west2.run.app</span> <span className="text-[8px] bg-[#1a1b26] text-gray-500 border border-white/5 px-1 py-0.2 rounded font-sans uppercase font-black">Shared</span></div>
+                          <div>• <span className="text-white">ais-mob-s4awj6r6eplr4dd2pgjeuy-288691445411.europe-west2.run.app</span> <span className="text-[8px] bg-[#1a1b26] text-gray-500 border border-white/5 px-1 py-0.2 rounded font-sans uppercase font-black">Mobile</span></div>
                         </div>
                       </li>
                       <li>
