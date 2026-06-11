@@ -1,4 +1,4 @@
-import React, { useState, useEffect, createContext, useContext, useRef } from 'react';
+import React, { useState, useEffect, createContext, useContext, useRef, useCallback } from 'react';
 import { HashRouter as Router, Routes, Route, Navigate, Link, useLocation, useNavigate } from 'react-router-dom';
 import { motion, AnimatePresence } from 'motion/react';
 import { 
@@ -80,6 +80,7 @@ interface AppContextType {
   isSidebarOpen: boolean;
   setIsSidebarOpen: (open: boolean) => void;
   authLoading: boolean;
+  showToast: (message: string, type?: 'success' | 'error' | 'info') => void;
 }
 
 const AppContext = createContext<AppContextType | undefined>(undefined);
@@ -108,6 +109,22 @@ const AppProvider = ({ children }: { children?: React.ReactNode }) => {
   const [darkMode, setDarkMode] = useState(true);
   const [isSidebarOpen, setIsSidebarOpen] = useState(false);
   const [authLoading, setAuthLoading] = useState(true);
+  
+  // Toast notifications state
+  const [toast, setToast] = useState<{ message: string; type: 'success' | 'error' | 'info' } | null>(null);
+
+  const showToast = useCallback((message: string, type: 'success' | 'error' | 'info' = 'info') => {
+    setToast({ message, type });
+  }, []);
+
+  useEffect(() => {
+    if (toast) {
+      const timer = setTimeout(() => {
+        setToast(null);
+      }, 4000);
+      return () => clearTimeout(timer);
+    }
+  }, [toast]);
 
   // Connection Test
   useEffect(() => {
@@ -200,9 +217,51 @@ const AppProvider = ({ children }: { children?: React.ReactNode }) => {
     <AppContext.Provider value={{ 
       user, setUser, users, setUsers, orders, setOrders, transactions, setTransactions,
       tickets, setTickets, darkMode, setDarkMode, isSidebarOpen, setIsSidebarOpen,
-      authLoading
+      authLoading, showToast
     }}>
       {children}
+      
+      {/* Sleek Floating Custom Toast Notification overlay to replace standard window alerts */}
+      <AnimatePresence>
+        {toast && (
+          <motion.div
+            initial={{ opacity: 0, y: -50, scale: 0.95 }}
+            animate={{ opacity: 1, y: 0, scale: 1 }}
+            exit={{ opacity: 0, y: -20, scale: 0.95 }}
+            transition={{ type: 'spring', damping: 25, stiffness: 350 }}
+            className="fixed top-6 left-1/2 -translate-x-1/2 z-[9999] flex items-center gap-3 px-5 py-4 rounded-[22px] border shadow-2xl backdrop-blur-md max-w-sm w-[90%] md:w-auto"
+            style={{
+              backgroundColor: toast.type === 'success' 
+                ? 'rgba(12, 45, 23, 0.95)' 
+                : toast.type === 'error'
+                ? 'rgba(67, 12, 12, 0.95)' 
+                : 'rgba(21, 23, 35, 0.95)',
+              borderColor: toast.type === 'success'
+                ? 'rgba(34, 197, 94, 0.3)'
+                : toast.type === 'error'
+                ? 'rgba(239, 68, 68, 0.3)'
+                : 'rgba(168, 85, 247, 0.3)',
+            }}
+          >
+            {toast.type === 'success' && (
+              <span className="w-5 h-5 rounded-full bg-green-500/10 flex items-center justify-center text-green-400 font-bold text-xs">✓</span>
+            )}
+            {toast.type === 'error' && (
+              <span className="w-5 h-5 rounded-full bg-red-500/10 flex items-center justify-center text-red-400 font-bold text-xs">✕</span>
+            )}
+            {toast.type === 'info' && (
+              <span className="w-5 h-5 rounded-full bg-purple-500/10 flex items-center justify-center text-purple-400 font-bold text-xs">ℹ</span>
+            )}
+            <p className="text-[11px] font-extrabold tracking-wide text-white flex-1 leading-tight">{toast.message}</p>
+            <button 
+              onClick={() => setToast(null)}
+              className="text-gray-400 hover:text-white text-sm font-black pl-2 pr-1"
+            >
+              ×
+            </button>
+          </motion.div>
+        )}
+      </AnimatePresence>
     </AppContext.Provider>
   );
 };
@@ -624,12 +683,12 @@ const getBadgeStyles = (badge: string) => {
 };
 
 const NewOrderPage = () => {
-  const { user } = useApp();
+  const { user, showToast } = useApp();
   const navigate = useNavigate();
   const [platform, setPlatform] = useState<Platform>(Platform.FACEBOOK);
   const [catId, setCatId] = useState('');
   const [servId, setServId] = useState('');
-  const [link, setLink] = useState('');
+  const [link, setLink] = useState('https://instagram.com/socialgrow/post');
   const [quantity, setQuantity] = useState(100);
 
   const categories = PLATFORM_CATEGORIES[platform];
@@ -643,10 +702,10 @@ const NewOrderPage = () => {
     e.preventDefault();
     if (!user) return;
     if (!link || !link.startsWith('http')) {
-      return alert('Please enter a valid target link/URL (must start with http:// or https://)');
+      return showToast('Please enter a valid target link/URL (must start with http:// or https://)', 'error');
     }
-    if (quantity < activeService.min) return alert(`Minimum is ${activeService.min}`);
-    if (quantity > activeService.max) return alert(`Maximum is ${activeService.max}`);
+    if (quantity < activeService.min) return showToast(`Minimum quantity is ${activeService.min}`, 'error');
+    if (quantity > activeService.max) return showToast(`Maximum quantity is ${activeService.max}`, 'error');
 
     try {
       // Secure check of active balance from database before debiting
@@ -657,7 +716,7 @@ const NewOrderPage = () => {
       }
       const latestUserData = userSnap.data() as User;
       if (latestUserData.balance < totalPrice) {
-        return alert("Low balance. Please fund your wallet.");
+        return showToast("Low balance. Please fund your wallet.", 'error');
       }
 
       const orderId = generateID('ORD');
@@ -1379,7 +1438,7 @@ const AdminPayments = () => {
 // --- App Entry ---
 
 const WalletPage = () => {
-  const { user, transactions } = useApp();
+  const { user, transactions, showToast } = useApp();
   const [amt, setAmt] = useState(1000);
   const [receipt, setReceipt] = useState<string | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
@@ -1398,8 +1457,8 @@ const WalletPage = () => {
 
   const notify = async () => {
     if (!user) return;
-    if (amt < 500) return alert("Minimum deposit is ₦500");
-    if (!receipt) return alert("Please upload a screenshot of the successful transfer.");
+    if (amt < 500) return showToast("Minimum deposit is ₦500", 'error');
+    if (!receipt) return showToast("Please upload a screenshot of the successful transfer.", 'error');
     
     try {
       const txId = generateID('TX');
@@ -1414,7 +1473,7 @@ const WalletPage = () => {
       };
       await setDoc(doc(db, 'transactions', txId), tx);
       setReceipt(null);
-      alert("Payment submitted to admin verification queue.");
+      showToast("Payment submitted to admin verification queue.", 'success');
     } catch (error) {
       handleFirestoreError(error, OperationType.WRITE, 'transactions');
     }
@@ -1431,7 +1490,7 @@ const WalletPage = () => {
                <div className="text-center space-y-3">
                   <div className="flex items-center justify-center gap-4">
                     <p className="text-4xl font-black tracking-tight">{accNo}</p>
-                    <button onClick={() => {navigator.clipboard.writeText(accNo); alert('Terminal Address Copied!')}} className="p-3 bg-white/10 rounded-2xl hover:bg-white/20 transition-all"><ClipboardIcon className="w-6 h-6" /></button>
+                    <button onClick={() => {navigator.clipboard.writeText(accNo); showToast('Terminal Address Copied!', 'success')}} className="p-3 bg-white/10 rounded-2xl hover:bg-white/20 transition-all"><ClipboardIcon className="w-6 h-6" /></button>
                   </div>
                   <p className="text-base font-bold uppercase tracking-widest opacity-80">John Gideon Ifebuche</p>
                </div>
@@ -1505,7 +1564,7 @@ const OrderHistory = () => {
 };
 
 const AffiliatePage = () => {
-  const { user } = useApp();
+  const { user, showToast } = useApp();
   return (
     <div className="bg-[#0D0F18] p-10 rounded-[45px] border border-white/5 text-white shadow-2xl animate-in fade-in duration-700">
       <h2 className="text-3xl font-black tracking-tight mb-8">Affiliate Terminal</h2>
@@ -1527,7 +1586,7 @@ const AffiliatePage = () => {
          <p className="text-[10px] font-black text-gray-400 uppercase tracking-widest mb-4">Unique Invite Node</p>
          <div className="bg-[#0D0F18] p-6 rounded-2xl flex items-center justify-between gap-4">
             <code className="text-xs text-purple-500 font-mono select-all truncate">tomsociagrow.com/ref/{user?.referralCode}</code>
-            <button onClick={() => {navigator.clipboard.writeText(`tomsociagrow.com/ref/${user?.referralCode}`); alert('Link Copied!')}} className="p-3 bg-white/5 rounded-xl hover:bg-white/10 transition-all"><ClipboardIcon className="w-5 h-5" /></button>
+            <button onClick={() => {navigator.clipboard.writeText(`tomsociagrow.com/ref/${user?.referralCode}`); showToast('Link Copied!', 'success')}} className="p-3 bg-white/5 rounded-xl hover:bg-white/10 transition-all"><ClipboardIcon className="w-5 h-5" /></button>
          </div>
       </div>
     </div>
@@ -1535,6 +1594,7 @@ const AffiliatePage = () => {
 };
 
 const SupportPage = () => {
+  const { showToast } = useApp();
   return (
     <div className="bg-[#0D0F18] p-10 rounded-[45px] border border-white/5 text-white shadow-2xl">
       <h2 className="text-3xl font-black tracking-tight mb-10">Communications Hub</h2>
@@ -1542,7 +1602,7 @@ const SupportPage = () => {
          <p className="text-sm text-gray-500 font-medium">Explain your query below. Response time is typically 5-30 minutes.</p>
          <input type="text" placeholder="Subject / Order ID" className="w-full bg-[#0D0F18] border border-white/5 rounded-2xl px-6 py-4 font-bold outline-none focus:ring-2 focus:ring-purple-600" />
          <textarea placeholder="Detailed Description..." className="w-full bg-[#0D0F18] border border-white/5 rounded-3xl px-6 py-4 font-bold outline-none focus:ring-2 focus:ring-purple-600 h-40" />
-         <button onClick={() => alert('Encrypted message sent to admin.')} className="w-full py-5 bg-purple-600 rounded-2xl font-black text-sm uppercase tracking-widest shadow-xl">Transmit Ticket</button>
+         <button onClick={() => showToast('Encrypted message sent to admin.', 'success')} className="w-full py-5 bg-purple-600 rounded-2xl font-black text-sm uppercase tracking-widest shadow-xl">Transmit Ticket</button>
       </div>
     </div>
   );

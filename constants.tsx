@@ -41,18 +41,35 @@ const generateFacebookPackages = (categoryName: string, prefixId: string): Servi
     { suffix: '[Instant Start]', price: 1300, delivery: 'Instant Delivery', refill: '30 Days Refill', quality: 'Lightning Fast Acceleration', badge: 'Instant Start' },
     { suffix: '[Non Drop]', price: 1600, delivery: '2–12 Hours', refill: 'Lifetime Guarantee', quality: 'Stable Fixed Volume', badge: 'Non Drop' }
   ];
-  return templates.map((t, idx) => ({
-    id: `fb_${prefixId}_p${idx + 1}`,
-    name: `${categoryName} ${t.suffix}`,
-    pricePer1000: t.price,
-    description: `Enterprise-grade ${categoryName.toLowerCase()} SMM pipeline. Monitored server allocation with immediate startup window. Safe protocols.`,
-    min: 100,
-    max: 100000,
-    deliveryTime: t.delivery,
-    refillStatus: t.refill,
-    serviceQuality: t.quality,
-    badge: t.badge as any
-  }));
+  return templates.map((t, idx) => {
+    let finalPrice = t.price;
+    const nameLower = categoryName.toLowerCase();
+    
+    if (nameLower.includes('view') || nameLower.includes('play')) {
+      finalPrice = Math.round(t.price * 0.08); // 92% cheaper
+    } else if (nameLower.includes('like')) {
+      finalPrice = Math.round(t.price * 0.18); // 82% cheaper
+    } else if (nameLower.includes('comment')) {
+      finalPrice = Math.round(t.price * 0.28); // 72% cheaper
+    } else if (nameLower.includes('share') || nameLower.includes('save') || nameLower.includes('visit') || nameLower.includes('favorite')) {
+      finalPrice = Math.round(t.price * 0.20); // 80% cheaper
+    }
+    
+    if (finalPrice < 10) finalPrice = 10; // Ensure sensible lower limit
+
+    return {
+      id: `fb_${prefixId}_p${idx + 1}`,
+      name: `${categoryName} ${t.suffix}`,
+      pricePer1000: finalPrice,
+      description: `Enterprise-grade ${categoryName.toLowerCase()} SMM pipeline. Monitored server allocation with immediate startup window. Safe protocols.`,
+      min: 100,
+      max: 100000,
+      deliveryTime: t.delivery,
+      refillStatus: t.refill,
+      serviceQuality: t.quality,
+      badge: t.badge as any
+    };
+  });
 };
 
 const generateInstagramPackages = (categoryName: string, prefixId: string): ServiceDefinition[] => {
@@ -67,18 +84,35 @@ const generateInstagramPackages = (categoryName: string, prefixId: string): Serv
     { suffix: '[High Retention]', price: 1500, delivery: '0–8 Hours', refill: '45 Days Refill', quality: 'Audiences with High Retention', badge: 'High Retention' },
     { suffix: '[Non Drop]', price: 1800, delivery: '2–12 Hours', refill: 'Lifetime Guarantee', quality: 'Organic Persistent Volumes', badge: 'Non Drop' }
   ];
-  return templates.map((t, idx) => ({
-    id: `ig_${prefixId}_p${idx + 1}`,
-    name: `${categoryName} ${t.suffix}`,
-    pricePer1000: t.price,
-    description: `Premium algorithms targeting active ${categoryName.toLowerCase()} streams. Organic feed delivery and secure transaction flow.`,
-    min: 100,
-    max: 100000,
-    deliveryTime: t.delivery,
-    refillStatus: t.refill,
-    serviceQuality: t.quality,
-    badge: t.badge as any
-  }));
+  return templates.map((t, idx) => {
+    let finalPrice = t.price;
+    const nameLower = categoryName.toLowerCase();
+    
+    if (nameLower.includes('view') || nameLower.includes('play')) {
+      finalPrice = Math.round(t.price * 0.08); // 92% cheaper
+    } else if (nameLower.includes('like')) {
+      finalPrice = Math.round(t.price * 0.18); // 82% cheaper
+    } else if (nameLower.includes('comment')) {
+      finalPrice = Math.round(t.price * 0.28); // 72% cheaper
+    } else if (nameLower.includes('share') || nameLower.includes('save') || nameLower.includes('visit') || nameLower.includes('favorite')) {
+      finalPrice = Math.round(t.price * 0.20); // 80% cheaper
+    }
+    
+    if (finalPrice < 10) finalPrice = 10;
+
+    return {
+      id: `ig_${prefixId}_p${idx + 1}`,
+      name: `${categoryName} ${t.suffix}`,
+      pricePer1000: finalPrice,
+      description: `Premium algorithms targeting active ${categoryName.toLowerCase()} streams. Organic feed delivery and secure transaction flow.`,
+      min: 100,
+      max: 100000,
+      deliveryTime: t.delivery,
+      refillStatus: t.refill,
+      serviceQuality: t.quality,
+      badge: t.badge as any
+    };
+  });
 };
 
 const generateTikTokPackages = (categoryName: string, prefixId: string): ServiceDefinition[] => {
@@ -91,18 +125,35 @@ const generateTikTokPackages = (categoryName: string, prefixId: string): Service
     { suffix: '[High Retention]', price: 1600, delivery: '1–12 Hours', refill: '45 Days Refill', quality: 'Sustained View Channels', badge: 'High Retention' },
     { suffix: '[Non Drop]', price: 1900, delivery: '2–24 Hours', refill: 'Lifetime Guarantee', quality: 'Zero Leak Volumes', badge: 'Non Drop' }
   ];
-  return templates.map((t, idx) => ({
-    id: `tk_${prefixId}_p${idx + 1}`,
-    name: `${categoryName} ${t.suffix}`,
-    pricePer1000: t.price,
-    description: `High retention ${categoryName.toLowerCase()} optimization for viral expansion. Bypasses standard algorithmic delays immediately.`,
-    min: 100,
-    max: 1000000,
-    deliveryTime: t.delivery,
-    refillStatus: t.refill,
-    serviceQuality: t.quality,
-    badge: t.badge as any
-  }));
+  return templates.map((t, idx) => {
+    let finalPrice = t.price;
+    const nameLower = categoryName.toLowerCase();
+    
+    if (nameLower.includes('view') || nameLower.includes('play')) {
+      finalPrice = Math.round(t.price * 0.08); // 92% cheaper
+    } else if (nameLower.includes('like')) {
+      finalPrice = Math.round(t.price * 0.18); // 82% cheaper
+    } else if (nameLower.includes('comment')) {
+      finalPrice = Math.round(t.price * 0.28); // 72% cheaper
+    } else if (nameLower.includes('share') || nameLower.includes('save') || nameLower.includes('visit') || nameLower.includes('favorite')) {
+      finalPrice = Math.round(t.price * 0.20); // 80% cheaper
+    }
+    
+    if (finalPrice < 10) finalPrice = 10;
+
+    return {
+      id: `tk_${prefixId}_p${idx + 1}`,
+      name: `${categoryName} ${t.suffix}`,
+      pricePer1000: finalPrice,
+      description: `High retention ${categoryName.toLowerCase()} optimization for viral expansion. Bypasses standard algorithmic delays immediately.`,
+      min: 100,
+      max: 1000000,
+      deliveryTime: t.delivery,
+      refillStatus: t.refill,
+      serviceQuality: t.quality,
+      badge: t.badge as any
+    };
+  });
 };
 
 const generateYouTubePackages = (categoryName: string, prefixId: string): ServiceDefinition[] => {
@@ -114,18 +165,37 @@ const generateYouTubePackages = (categoryName: string, prefixId: string): Servic
     { suffix: '[30 Days Refill]', price: 5000, delivery: '1–2 Days', refill: '30 Days Refill', quality: 'Standard Social Profiles', badge: 'Recommended' },
     { suffix: '[Instant Start]', price: 4800, delivery: 'Instant Start', refill: '45 Days Refill', quality: 'High-Velocity Partners', badge: 'Instant Start' }
   ];
-  return templates.map((t, idx) => ({
-    id: `yt_${prefixId}_p${idx + 1}`,
-    name: `${categoryName} ${t.suffix}`,
-    pricePer1000: t.price,
-    description: `Safe monetization metrics for your YouTube channel. Full retention parameters configured automatically. Secure routing.`,
-    min: 100,
-    max: 1000000,
-    deliveryTime: t.delivery,
-    refillStatus: t.refill,
-    serviceQuality: t.quality,
-    badge: t.badge as any
-  }));
+  return templates.map((t, idx) => {
+    let finalPrice = t.price;
+    const nameLower = categoryName.toLowerCase();
+    
+    if (nameLower.includes('view') || nameLower.includes('play')) {
+      finalPrice = Math.round(t.price * 0.08); // 92% cheaper
+    } else if (nameLower.includes('like')) {
+      finalPrice = Math.round(t.price * 0.18); // 82% cheaper
+    } else if (nameLower.includes('comment')) {
+      finalPrice = Math.round(t.price * 0.28); // 72% cheaper
+    } else if (nameLower.includes('share') || nameLower.includes('save') || nameLower.includes('visit') || nameLower.includes('favorite')) {
+      finalPrice = Math.round(t.price * 0.20); // 80% cheaper
+    } else if (nameLower.includes('sub')) {
+      finalPrice = Math.round(t.price * 0.40); // Subscribers also cheaper!
+    }
+    
+    if (finalPrice < 10) finalPrice = 10;
+
+    return {
+      id: `yt_${prefixId}_p${idx + 1}`,
+      name: `${categoryName} ${t.suffix}`,
+      pricePer1000: finalPrice,
+      description: `Safe monetization metrics for your YouTube channel. Full retention parameters configured automatically. Secure routing.`,
+      min: 100,
+      max: 1000000,
+      deliveryTime: t.delivery,
+      refillStatus: t.refill,
+      serviceQuality: t.quality,
+      badge: t.badge as any
+    };
+  });
 };
 
 // --- Platform Categories Mapping ---
