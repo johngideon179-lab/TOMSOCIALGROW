@@ -1,5 +1,5 @@
 import React, { useState, useEffect, createContext, useContext, useRef, useCallback } from 'react';
-import { HashRouter as Router, Routes, Route, Navigate, Link, useLocation, useNavigate } from 'react-router-dom';
+import { HashRouter as Router, Routes, Route, Navigate, Link, useLocation, useNavigate, useParams } from 'react-router-dom';
 import { motion, AnimatePresence } from 'motion/react';
 import { 
   User, Order, OrderStatus, Platform, Transaction, Ticket 
@@ -23,7 +23,7 @@ import AnalyticsPage from './AnalyticsPage';
 import { auth, db, signInWithGoogle } from './firebase';
 import { onAuthStateChanged, signOut, signInWithEmailAndPassword, createUserWithEmailAndPassword } from 'firebase/auth';
 import { 
-  doc, getDoc, setDoc, onSnapshot, collection, query, where, orderBy, 
+  doc, getDoc, getDocs, setDoc, onSnapshot, collection, query, where, orderBy, 
   updateDoc, addDoc, getDocFromServer, serverTimestamp 
 } from 'firebase/firestore';
 
@@ -267,6 +267,26 @@ const AppProvider = ({ children }: { children?: React.ReactNode }) => {
 };
 
 
+// --- Referral Routing ---
+const ReferralRedirect = () => {
+  const { refCode } = useParams();
+  const navigate = useNavigate();
+
+  useEffect(() => {
+    if (refCode) {
+      localStorage.setItem('referredByCode', refCode);
+    }
+    navigate('/login', { replace: true });
+  }, [refCode, navigate]);
+
+  return (
+    <div className="min-h-screen bg-[#05060A] flex items-center justify-center text-white">
+      <div className="w-12 h-12 border-4 border-purple-600 border-t-transparent rounded-full animate-spin" />
+    </div>
+  );
+};
+
+
 // --- Authentication Flow ---
 
 const LoginPage = () => {
@@ -286,6 +306,7 @@ const LoginPage = () => {
         navigate('/dashboard');
       } else {
         const result = await createUserWithEmailAndPassword(auth, formData.email, formData.password);
+        const refCode = localStorage.getItem('referredByCode') || undefined;
         const newUser: User = {
           id: result.user.uid,
           username: formData.email.split('@')[0],
@@ -295,9 +316,11 @@ const LoginPage = () => {
           apiKey: generateID('KEY'),
           referralCode: generateID('REF'),
           referralEarnings: 0,
-          createdAt: new Date().toISOString()
+          createdAt: new Date().toISOString(),
+          ...(refCode ? { referredBy: refCode } : {})
         };
         await setDoc(doc(db, 'users', result.user.uid), newUser);
+        localStorage.removeItem('referredByCode'); // consume code
         navigate('/dashboard');
       }
     } catch (error: any) {
@@ -314,6 +337,7 @@ const LoginPage = () => {
       const userDoc = await getDoc(userDocRef);
 
       if (!userDoc.exists()) {
+        const refCode = localStorage.getItem('referredByCode') || undefined;
         const newUser: User = {
           id: firebaseUser.uid,
           username: firebaseUser.displayName || firebaseUser.email?.split('@')[0] || 'User',
@@ -323,9 +347,11 @@ const LoginPage = () => {
           apiKey: generateID('KEY'),
           referralCode: generateID('REF'),
           referralEarnings: 0,
-          createdAt: new Date().toISOString()
+          createdAt: new Date().toISOString(),
+          ...(refCode ? { referredBy: refCode } : {})
         };
         await setDoc(userDocRef, newUser);
+        localStorage.removeItem('referredByCode');
       }
       navigate('/dashboard');
     } catch (error: any) {
@@ -481,7 +507,7 @@ const LoginPage = () => {
 const Header = () => {
   const { user, setDarkMode, darkMode, setIsSidebarOpen } = useApp();
   return (
-    <header className="sticky top-0 z-30 w-full h-24 bg-[#05060A]/80 backdrop-blur-md border-b border-white/5 px-8 lg:px-14 flex items-center justify-between text-white">
+    <header className="sticky top-0 z-30 w-full h-24 bg-[#05060A]/80 backdrop-blur-md border-b border-white/5 px-4 sm:px-8 lg:px-14 flex items-center justify-between text-white">
       <div className="flex items-center gap-8">
         <button onClick={() => setIsSidebarOpen(true)} className="p-3 bg-white/5 rounded-2xl lg:hidden hover:bg-white/10 transition-colors"><Bars3Icon className="w-6 h-6" /></button>
         <div className="bg-purple-600/10 border border-purple-500/20 px-6 py-3 rounded-2xl flex items-center gap-3">
@@ -507,6 +533,7 @@ const Sidebar = () => {
   const items = user?.role === 'admin' ? [
     { name: 'Admin Hub', path: '/admin', icon: HomeIcon },
     { name: 'User Database', path: '/admin/users', icon: UsersIcon },
+    { name: 'Pending Orders', path: '/admin/pending', icon: ArrowPathIcon },
     { name: 'Global Orders', path: '/admin/orders', icon: AdjustmentsHorizontalIcon },
     { name: 'Transactions', path: '/admin/payments', icon: BanknotesIcon },
   ] : [
@@ -571,7 +598,7 @@ const PrivateLayout = ({ children }: { children?: React.ReactNode }) => {
       <Sidebar />
       <div className="flex-1 lg:ml-72 flex flex-col min-w-0">
         <Header />
-        <main className="flex-1 p-8 lg:p-14 overflow-y-auto">
+        <main className="flex-1 p-4 sm:p-8 lg:p-14 overflow-y-auto">
           {children}
         </main>
       </div>
@@ -1034,17 +1061,36 @@ const AdminHub = () => {
   const pendingTx = transactions.filter(t => t.status === 'pending');
   const systemValue = users.reduce((acc, u) => acc + u.balance, 0);
 
+  // BACKEND CALCULATIONS: Dynamic Ledger Analytics calculations on the fly
+  const approvedCapitalVolume = transactions
+    .filter(t => t.status === 'approved')
+    .reduce((acc, t) => acc + t.amount, 0);
+
+  const activeRunCostLiability = orders
+    .filter(o => o.status === OrderStatus.PROCESSING || o.status === OrderStatus.PENDING)
+    .reduce((acc, o) => acc + o.price, 0);
+
+  const totalSuccessfulOrderCost = orders
+    .filter(o => o.status !== OrderStatus.REFUNDED)
+    .reduce((acc, o) => acc + o.price, 0);
+
+  const projectedProfitMargin = Math.round(totalSuccessfulOrderCost * 0.35); // 35% margin markup calculation on active/completed runs
+  const disbursedCommissions = users.reduce((acc, u) => acc + (u.referralEarnings || 0), 0);
+
   return (
     <div className="space-y-10 text-white animate-in fade-in duration-700">
-      <div className="flex items-center justify-between">
-         <h1 className="text-4xl font-black tracking-tight">System Controller</h1>
-         <div className="flex items-center gap-3 px-4 py-2 bg-green-500/10 border border-green-500/20 rounded-full">
+      <div className="flex flex-col sm:flex-row justify-between sm:items-center gap-4">
+         <div>
+            <h1 className="text-3xl md:text-4xl font-black tracking-tight">System Controller</h1>
+            <p className="text-xs text-gray-500 font-semibold mt-1 font-sans">Verify system transactions, track active nodes, review financials, and process refunds</p>
+         </div>
+         <div className="flex items-center gap-3 px-4 py-2 bg-green-500/10 border border-green-500/20 rounded-full self-start sm:self-auto">
             <div className="w-2 h-2 bg-green-500 rounded-full animate-pulse"></div>
             <span className="text-[9px] font-black uppercase text-green-500">Nodes Synchronized</span>
          </div>
       </div>
 
-      <div className="grid sm:grid-cols-2 lg:grid-cols-4 gap-6">
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6">
         <div className="bg-[#0D0F18] p-8 rounded-[35px] border border-white/5 shadow-2xl">
            <UsersIcon className="w-8 h-8 text-blue-500 mb-4" />
            <p className="text-[10px] font-black text-gray-500 uppercase tracking-widest">Global Accounts</p>
@@ -1063,8 +1109,38 @@ const AdminHub = () => {
         <div className="bg-[#0D0F18] p-8 rounded-[35px] border border-white/5 shadow-2xl">
            <WalletIcon className="w-8 h-8 text-green-500 mb-4" />
            <p className="text-[10px] font-black text-gray-500 uppercase tracking-widest">Total Liability</p>
-           <p className="text-4xl font-black mt-1 tracking-tighter">₦{systemValue.toLocaleString()}</p>
+           <p className="text-4xl font-black mt-1 tracking-tighter/90 leading-none">₦{systemValue.toLocaleString()}</p>
         </div>
+      </div>
+
+      {/* Backend Ledger Calculations Card */}
+      <div className="bg-[#0D0F18] p-6 md:p-10 rounded-[35px] md:rounded-[45px] border border-white/5 shadow-2xl">
+         <div className="flex items-center gap-3 mb-6">
+            <CommandLineIcon className="w-6 h-6 text-purple-500" />
+            <h3 className="text-lg md:text-xl font-black tracking-tight">Ledger Operations & Backend Calculations</h3>
+         </div>
+         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6">
+            <div className="bg-[#161924] p-5 rounded-3xl border border-white/5">
+               <span className="text-[9px] font-bold text-gray-500 uppercase tracking-widest block font-sans">Gross Capital Volume</span>
+               <span className="text-xl font-black text-green-400 mt-1 block">₦{approvedCapitalVolume.toLocaleString()}</span>
+               <p className="text-[9px] text-gray-500 mt-2 font-sans font-medium">Aggregated verified fiat deposits</p>
+            </div>
+            <div className="bg-[#161924] p-5 rounded-3xl border border-white/5">
+               <span className="text-[9px] font-bold text-gray-500 uppercase tracking-widest block font-sans">Active Runs Overhead</span>
+               <span className="text-xl font-black text-yellow-500 mt-1 block">₦{activeRunCostLiability.toLocaleString()}</span>
+               <p className="text-[9px] text-gray-500 mt-2 font-sans font-medium">Total value of current ongoing orders</p>
+            </div>
+            <div className="bg-[#161924] p-5 rounded-3xl border border-white/5">
+               <span className="text-[9px] font-bold text-gray-500 uppercase tracking-widest block font-sans">Projected Markup Profit</span>
+               <span className="text-xl font-black text-purple-400 mt-1 block">₦{projectedProfitMargin.toLocaleString()}</span>
+               <p className="text-[9px] text-gray-500 mt-2 font-sans font-medium">Estimated SMM margin (35% standard)</p>
+            </div>
+            <div className="bg-[#161924] p-5 rounded-3xl border border-white/5">
+               <span className="text-[9px] font-bold text-gray-500 uppercase tracking-widest block font-sans">Referral Disbursements</span>
+               <span className="text-xl font-black text-white mt-1 block">₦{disbursedCommissions.toLocaleString()}</span>
+               <p className="text-[9px] text-gray-500 mt-2 font-sans font-medium">Paid out affiliate commissions</p>
+            </div>
+         </div>
       </div>
 
       <div className="grid lg:grid-cols-2 gap-8">
@@ -1108,21 +1184,21 @@ const AdminHub = () => {
 const AdminUsers = () => {
   const { users } = useApp();
   return (
-    <div className="bg-[#0D0F18] p-10 rounded-[45px] border border-white/5 shadow-2xl text-white">
-      <h2 className="text-3xl font-black mb-10 tracking-tight">Account Database</h2>
+    <div className="bg-[#0D0F18] p-6 md:p-10 rounded-[35px] md:rounded-[45px] border border-white/5 shadow-2xl text-white">
+      <h2 className="text-2xl md:text-3xl font-black mb-10 tracking-tight font-sans">Account Database</h2>
       <div className="grid gap-4">
         {users.map(u => (
-          <div key={u.id} className="p-8 bg-[#161924] rounded-3xl border border-white/5 flex items-center justify-between">
-             <div className="flex items-center gap-6">
-                <div className="w-12 h-12 bg-purple-600 rounded-xl flex items-center justify-center font-black text-lg">{u.username.charAt(0)}</div>
-                <div>
-                  <p className="text-xl font-black tracking-tight">{u.username}</p>
-                  <p className="text-[10px] font-bold text-gray-500 uppercase tracking-widest">{u.email} • {u.role}</p>
+          <div key={u.id} className="p-6 md:p-8 bg-[#161924] rounded-3xl border border-white/5 flex flex-col sm:flex-row sm:items-center justify-between gap-4 transition-all hover:border-purple-600/30">
+             <div className="flex items-center gap-4 md:gap-6 min-w-0">
+                <div className="w-12 h-12 bg-purple-600 rounded-xl flex items-center justify-center font-black text-lg shrink-0">{u.username.charAt(0)}</div>
+                <div className="min-w-0">
+                  <p className="text-lg md:text-xl font-black tracking-tight truncate">{u.username}</p>
+                  <p className="text-[10px] font-bold text-gray-500 uppercase tracking-widest truncate">{u.email} • {u.role}</p>
                 </div>
              </div>
-             <div className="text-right">
-                <p className="text-2xl font-black text-green-500">₦{u.balance.toLocaleString()}</p>
-                <p className="text-[9px] text-gray-600 font-black uppercase mt-1">ID: {u.id}</p>
+             <div className="text-left sm:text-right shrink-0 border-t border-white/5 pt-3 sm:border-t-0 sm:pt-0">
+                <p className="text-xl md:text-2xl font-black text-green-500">₦{u.balance.toLocaleString()}</p>
+                <p className="text-[9px] text-gray-600 font-bold uppercase mt-1 font-mono">NODE: {u.id}</p>
              </div>
           </div>
         ))}
@@ -1295,8 +1371,141 @@ const AdminOrders = () => {
   );
 };
 
+const AdminPendingOrders = () => {
+  const { orders, users, showToast } = useApp();
+
+  const updateStatus = async (order: Order, newStatus: OrderStatus) => {
+    if (order.status === newStatus) return;
+
+    try {
+      if (newStatus === OrderStatus.REFUNDED) {
+        const confirmCancel = window.confirm(`Are you sure you want to Cancel and Refund this run? ₦${order.price.toLocaleString()} will be automatically credited back to this user's balance.`);
+        if (!confirmCancel) return;
+
+        const userRef = doc(db, 'users', order.userId);
+        const userSnap = await getDoc(userRef);
+
+        if (userSnap.exists()) {
+          const userData = userSnap.data() as User;
+          const updatedBalance = userData.balance + order.price;
+          await updateDoc(userRef, { balance: updatedBalance });
+          showToast(`Refunded ₦${order.price.toLocaleString()} back to ${userData.username}'s SMM wallet.`, 'success');
+        } else {
+          showToast("Error: Target user node could not be resolved.", 'error');
+        }
+      }
+
+      await updateDoc(doc(db, 'orders', order.id), { status: newStatus });
+      showToast(`Order status updated to ${newStatus}.`, 'success');
+    } catch (error) {
+      handleFirestoreError(error, OperationType.UPDATE, `orders/${order.id}`);
+      showToast("Failed to update status", "error");
+    }
+  };
+
+  const pendingOrders = orders.filter(o => o.status === OrderStatus.PENDING);
+
+  return (
+    <div className="max-w-4xl mx-auto space-y-6 text-white animate-in fade-in duration-500">
+      <div className="flex flex-col md:flex-row justify-between md:items-center mb-8 gap-4">
+        <div>
+          <h2 className="text-3xl font-black tracking-tight text-yellow-400">Receive Submitted Orders</h2>
+          <p className="text-xs text-gray-500 font-semibold mt-1 font-sans">Acknowledge, claim, start runs, or refund pending user submissions</p>
+        </div>
+        <div className="bg-[#0D0F18] px-5 py-3 rounded-2xl border border-white/5 text-[10px] font-black uppercase text-yellow-400">
+          Pending Queue Size: {pendingOrders.length}
+        </div>
+      </div>
+
+      <div className="space-y-6">
+        {pendingOrders.map(o => {
+          const orderUser = users.find(u => u.id === o.userId);
+          return (
+            <div key={o.id} className="bg-[#0D0F18] p-6 md:p-10 rounded-[35px] md:rounded-[40px] border border-white/5 shadow-2xl space-y-6">
+              <div className="flex flex-col md:flex-row justify-between md:items-start gap-6 border-b border-white/5 pb-6">
+                <div className="space-y-4 flex-1 min-w-0">
+                  <div className="flex items-center gap-4 flex-wrap">
+                    <div className="text-yellow-500 p-3 bg-yellow-500/5 border border-yellow-500/10 rounded-2xl shrink-0">
+                      {PLATFORM_LOGOS[o.platform]}
+                    </div>
+                    <div>
+                      <h4 className="text-lg font-black tracking-tight text-white">{o.service}</h4>
+                      <p className="text-[10px] text-gray-500 font-bold uppercase mt-1 tracking-wider leading-relaxed leading-sans">
+                        Reference Node ID: <code className="text-yellow-400 font-mono">{o.id}</code>
+                      </p>
+                    </div>
+                  </div>
+
+                  <div className="bg-[#161924] p-5 rounded-2xl border border-white/5 space-y-3.5 mt-3 text-[11px] font-semibold text-gray-300">
+                    <div className="flex justify-between items-center gap-4">
+                      <span className="text-gray-500 font-bold uppercase text-[9px] shrink-0">Target Link:</span>
+                      <a href={o.link} target="_blank" rel="noopener noreferrer" className="text-purple-400 hover:underline truncate max-w-sm font-mono flex items-center gap-1">
+                        {o.link} 🔗
+                      </a>
+                    </div>
+                    <div className="flex justify-between items-center">
+                      <span className="text-gray-500 font-bold uppercase text-[9px]">Client Profile:</span>
+                      <span className="text-white bg-white/5 px-2.5 py-1 rounded-lg">
+                        {orderUser ? `${orderUser.username} (${orderUser.email})` : `User ID: ${o.userId}`}
+                      </span>
+                    </div>
+                    <div className="flex justify-between items-center">
+                      <span className="text-gray-500 font-bold uppercase text-[9px]">Requested Volume (Qty):</span>
+                      <span className="text-yellow-400 font-black text-xs bg-yellow-500/10 px-2.5 py-0.5 rounded-lg border border-yellow-500/20 font-sans">
+                        {o.quantity.toLocaleString()} Items
+                      </span>
+                    </div>
+                    <div className="flex justify-between items-center font-sans">
+                      <span className="text-gray-500 font-bold uppercase text-[9px]">Registration Timestamp:</span>
+                      <span className="text-gray-400">{new Date(o.createdAt).toLocaleString()}</span>
+                    </div>
+                  </div>
+                </div>
+
+                <div className="text-right flex flex-col items-end shrink-0 md:min-w-[160px] font-sans">
+                  <span className="text-[9px] font-black uppercase text-gray-500 tracking-wider">Estimated Price</span>
+                  <p className="text-3xl font-black text-green-400 mt-1">₦{o.price.toLocaleString()}</p>
+                </div>
+              </div>
+
+              {/* Receive Commands */}
+              <div className="pt-2 flex flex-col sm:flex-row gap-3">
+                <button
+                  onClick={() => updateStatus(o, OrderStatus.PROCESSING)}
+                  className="flex-1 cursor-pointer py-4 bg-purple-600 hover:bg-purple-700 text-white rounded-2xl font-black text-xs uppercase tracking-widest transition-all flex items-center justify-center gap-2 shadow-xl shadow-purple-900/20"
+                >
+                  ⚡ Receive & Start Run
+                </button>
+                <button
+                  onClick={() => updateStatus(o, OrderStatus.COMPLETED)}
+                  className="flex-1 cursor-pointer py-4 bg-green-600 hover:bg-green-700 text-white rounded-2xl font-black text-xs uppercase tracking-widest transition-all flex items-center justify-center gap-2 shadow-xl shadow-green-900/15"
+                >
+                  ✅ Fast-Complete Run
+                </button>
+                <button
+                  onClick={() => updateStatus(o, OrderStatus.REFUNDED)}
+                  className="flex-1 cursor-pointer py-4 bg-red-600/15 hover:bg-red-600/25 text-red-500 rounded-2xl border border-red-500/10 font-black text-xs uppercase tracking-widest transition-all"
+                >
+                  ❌ Cancel & Refund
+                </button>
+              </div>
+            </div>
+          );
+        })}
+        {pendingOrders.length === 0 && (
+          <div className="text-center py-24 bg-[#0D0F18]/50 rounded-[40px] border border-dashed border-white/5 shadow-inner">
+            <ClockIcon className="w-12 h-12 text-gray-600 mx-auto mb-4 animate-pulse" />
+            <p className="font-sans font-black text-lg text-gray-500 italic block">Pending Queue is Empty</p>
+            <p className="text-xs text-gray-600 mt-1 uppercase tracking-wider font-extrabold font-sans">All orders are received & processing.</p>
+          </div>
+        )}
+      </div>
+    </div>
+  );
+};
+
 const AdminPayments = () => {
-  const { transactions, users } = useApp();
+  const { transactions, users, showToast } = useApp();
   const [selectedReceipt, setSelectedReceipt] = useState<string | null>(null);
   const [activeTab, setActiveTab] = useState<'pending' | 'history'>('pending');
 
@@ -1307,20 +1516,50 @@ const AdminPayments = () => {
       if (!userDoc.exists()) throw new Error("User not found");
       const userData = userDoc.data() as User;
 
+      // 1. Approve Transaction
       await updateDoc(doc(db, 'transactions', tx.id), { status: 'approved' });
+      
+      // 2. Credit the User
       await updateDoc(userRef, { balance: userData.balance + tx.amount });
-      alert('Agent SMM wallet credited successfully.');
+
+      // 3. BACKEND REFERRAL CALCULATION: Credit 10% commission if user was referred by another node
+      if (userData.referredBy) {
+        try {
+          const usersRef = collection(db, 'users');
+          const refQuery = query(usersRef, where('referralCode', '==', userData.referredBy));
+          const querySnap = await getDocs(refQuery);
+          if (!querySnap.empty) {
+            const referrerDoc = querySnap.docs[0];
+            const referrerRef = referrerDoc.ref;
+            const referrerData = referrerDoc.data() as User;
+            const commission = Math.round(tx.amount * 0.10); // 10% Backend calculation
+            if (commission > 0) {
+              await updateDoc(referrerRef, { 
+                balance: referrerData.balance + commission,
+                referralEarnings: (referrerData.referralEarnings || 0) + commission
+              });
+              showToast(`Referral Commission of ₦${commission.toLocaleString()} credited to ${referrerData.username}!`, 'success');
+            }
+          }
+        } catch (err) {
+          console.error("Backend referral calculation error:", err);
+        }
+      }
+
+      showToast('Agent SMM wallet credited successfully.', 'success');
     } catch (error) {
       handleFirestoreError(error, OperationType.UPDATE, 'transactions/users');
+      showToast('Error verifying payment.', 'error');
     }
   };
 
   const reject = async (tx: Transaction) => {
     try {
       await updateDoc(doc(db, 'transactions', tx.id), { status: 'rejected' });
-      alert('Deposit rejected.');
+      showToast('Deposit rejected.', 'info');
     } catch (error) {
       handleFirestoreError(error, OperationType.UPDATE, `transactions/${tx.id}`);
+      showToast('Error rejecting payment.', 'error');
     }
   };
 
@@ -1541,23 +1780,89 @@ const WalletPage = () => {
 
 const OrderHistory = () => {
   const { orders, user } = useApp();
+  const [activeFilter, setActiveFilter] = React.useState<'All' | OrderStatus.PENDING | OrderStatus.PROCESSING | OrderStatus.COMPLETED>('All');
+
+  const userOrders = orders.filter(o => o.userId === user?.id);
+  const filteredOrders = userOrders.filter(o => {
+    if (activeFilter === 'All') return true;
+    return o.status === activeFilter;
+  });
+
+  const filterOptions = [
+    { label: 'All Runs', value: 'All' },
+    { label: 'Pending', value: OrderStatus.PENDING },
+    { label: 'Processing', value: OrderStatus.PROCESSING },
+    { label: 'Completed', value: OrderStatus.COMPLETED },
+  ];
+
   return (
-    <div className="bg-[#0D0F18] p-10 rounded-[45px] border border-white/5 text-white shadow-2xl animate-in fade-in duration-700">
-      <h2 className="text-3xl font-black tracking-tight mb-10">Run History</h2>
+    <div className="bg-[#0D0F18] p-6 md:p-10 rounded-[35px] md:rounded-[45px] border border-white/5 text-white shadow-2xl animate-in fade-in duration-700">
+      <div className="flex flex-col md:flex-row md:items-center justify-between gap-6 mb-10">
+        <div>
+          <h2 className="text-2xl md:text-3xl font-black tracking-tight">Run History</h2>
+          <p className="text-xs text-gray-500 font-semibold mt-1 font-sans">Track the progression and status of all social runs</p>
+        </div>
+        
+        {/* Status Filter Tabs */}
+        <div className="flex flex-wrap gap-2 p-1.5 bg-[#161924] rounded-2xl border border-white/5">
+          {filterOptions.map((opt) => {
+            const isSelected = activeFilter === opt.value;
+            const count = opt.value === 'All' 
+              ? userOrders.length 
+              : userOrders.filter(o => o.status === opt.value).length;
+
+            return (
+              <button
+                key={opt.value}
+                onClick={() => setActiveFilter(opt.value as any)}
+                className={`px-4 py-2 text-[10px] font-black uppercase tracking-wider rounded-xl transition-all duration-300 flex items-center gap-1.5 cursor-pointer ${
+                  isSelected 
+                    ? 'bg-purple-600 text-white shadow-lg shadow-purple-900/20' 
+                    : 'text-gray-500 hover:text-white hover:bg-white/5'
+                }`}
+              >
+                {opt.label}
+                <span className={`px-1.5 py-0.5 rounded-md text-[8px] font-bold ${
+                  isSelected ? 'bg-white/20 text-white' : 'bg-white/5 text-gray-500'
+                }`}>
+                  {count}
+                </span>
+              </button>
+            );
+          })}
+        </div>
+      </div>
+
       <div className="space-y-4">
-        {orders.filter(o => o.userId === user?.id).map(o => (
-          <div key={o.id} className="p-8 bg-[#161924] rounded-3xl border border-white/5 flex justify-between items-center group hover:border-purple-600/30 transition-all">
-            <div className="flex items-center gap-4">
-              <div className="text-purple-500">{PLATFORM_LOGOS[o.platform]}</div>
-              <div>
-                <p className="text-lg font-black tracking-tight">{o.service}</p>
-                <p className="text-[10px] text-gray-500 font-bold uppercase tracking-widest mt-1 truncate max-w-xs">{o.link}</p>
+        {filteredOrders.map(o => (
+          <div key={o.id} className="p-6 md:p-8 bg-[#161924] rounded-3xl border border-white/5 flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 group hover:border-purple-600/30 transition-all">
+            <div className="flex items-center gap-4 min-w-0 w-full sm:w-auto">
+              <div className="text-purple-500 shrink-0">{PLATFORM_LOGOS[o.platform]}</div>
+              <div className="min-w-0 flex-1">
+                <p className="text-base md:text-lg font-black tracking-tight truncate">{o.service}</p>
+                <p className="text-[10px] text-gray-500 font-bold uppercase tracking-widest mt-1 truncate max-w-xs md:max-w-md font-mono">{o.link}</p>
               </div>
             </div>
-            <span className="bg-purple-600/10 text-purple-500 px-5 py-2 rounded-full text-[9px] font-black uppercase border border-purple-500/20">{o.status}</span>
+            
+            <div className="flex items-center justify-between w-full sm:w-auto gap-4 shrink-0 border-t border-white/5 pt-3 sm:border-t-0 sm:pt-0">
+              <div className="text-left sm:text-right">
+                <p className="text-[9px] text-gray-500 font-black uppercase tracking-wider">Volume</p>
+                <p className="text-sm font-black text-white">{o.quantity.toLocaleString()} items</p>
+              </div>
+              <span className={`px-4 py-1.5 rounded-full text-[9px] font-black uppercase tracking-wider border ${
+                o.status === OrderStatus.COMPLETED ? 'bg-green-500/10 text-green-400 border-green-500/20' : 
+                o.status === OrderStatus.PENDING ? 'bg-yellow-500/10 text-yellow-400 border-yellow-500/20' : 
+                o.status === OrderStatus.PROCESSING ? 'bg-blue-500/10 text-blue-400 border-blue-500/20' :
+                'bg-gray-500/10 text-gray-400 border-gray-500/20'
+              }`}>{o.status}</span>
+            </div>
           </div>
         ))}
-        {orders.filter(o => o.userId === user?.id).length === 0 && <p className="text-center py-20 opacity-20 font-black italic">No historical runs recorded.</p>}
+        {filteredOrders.length === 0 && (
+          <div className="text-center py-20 bg-[#161924]/30 rounded-3xl border border-dashed border-white/5">
+            <p className="opacity-40 text-sm font-black italic">No records found matching status "{activeFilter}".</p>
+          </div>
+        )}
       </div>
     </div>
   );
@@ -1676,6 +1981,7 @@ export default function App() {
       <Router>
         <Routes>
           <Route path="/login" element={<LoginPage />} />
+          <Route path="/ref/:refCode" element={<ReferralRedirect />} />
           <Route path="/dashboard" element={<PrivateLayout><Dashboard /></PrivateLayout>} />
           <Route path="/analytics" element={<PrivateLayout><AnalyticsPage /></PrivateLayout>} />
           <Route path="/new-order" element={<PrivateLayout><NewOrderPage /></PrivateLayout>} />
@@ -1688,6 +1994,7 @@ export default function App() {
             <Route index element={<AdminHub />} />
             <Route path="users" element={<AdminUsers />} />
             <Route path="orders" element={<AdminOrders />} />
+            <Route path="pending" element={<AdminPendingOrders />} />
             <Route path="payments" element={<AdminPayments />} />
           </Routes></PrivateLayout>} />
           <Route path="*" element={<Navigate to="/login" replace />} />
