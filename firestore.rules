@@ -50,10 +50,10 @@ service cloud.firestore {
              data.email is string &&
              data.role in ['user', 'admin'] &&
              data.balance is number &&
-             data.apiKey is string &&
-             data.referralCode is string &&
-             data.referralEarnings is number &&
-             data.createdAt is string;
+             (!('apiKey' in data) || data.apiKey is string) &&
+             (!('referralCode' in data) || data.referralCode is string) &&
+             (!('referralEarnings' in data) || data.referralEarnings is number) &&
+             (!('createdAt' in data) || data.createdAt is string);
     }
 
     // --- Order Rules ---

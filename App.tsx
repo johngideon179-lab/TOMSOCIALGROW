@@ -24,7 +24,7 @@ import { auth, db, signInWithGoogle } from './firebase';
 import { onAuthStateChanged, signOut, signInWithEmailAndPassword, createUserWithEmailAndPassword } from 'firebase/auth';
 import { 
   doc, getDoc, getDocs, setDoc, onSnapshot, collection, query, where, orderBy, 
-  updateDoc, addDoc, getDocFromServer, serverTimestamp 
+  updateDoc, addDoc, getDocFromServer, serverTimestamp, runTransaction 
 } from 'firebase/firestore';
 
 // --- Global State & Persistence ---
@@ -734,39 +734,53 @@ const NewOrderPage = () => {
     if (quantity < activeService.min) return showToast(`Minimum quantity is ${activeService.min}`, 'error');
     if (quantity > activeService.max) return showToast(`Maximum quantity is ${activeService.max}`, 'error');
 
+    // Use current auth user UID or fall back to user.id
+    const currentUid = auth.currentUser?.uid || user.id;
+    const userRef = doc(db, 'users', currentUid);
+    const orderId = generateID('ORD');
+
+    const newOrder: Order = {
+      id: orderId,
+      userId: currentUid,
+      platform,
+      service: activeService.name,
+      link,
+      quantity,
+      price: totalPrice,
+      status: OrderStatus.PENDING,
+      createdAt: new Date().toISOString(),
+      progress: 0,
+      autoRefill: activeService.refillStatus !== 'None'
+    };
+
     try {
-      // Secure check of active balance from database before debiting
-      const userRef = doc(db, 'users', user.id);
-      const userSnap = await getDoc(userRef);
-      if (!userSnap.exists()) {
-        throw new Error("User record not found in the nodes.");
-      }
-      const latestUserData = userSnap.data() as User;
-      if (latestUserData.balance < totalPrice) {
-        return showToast("Low balance. Please fund your wallet.", 'error');
-      }
+      let remainingBalance = 0;
 
-      const orderId = generateID('ORD');
-      const newOrder: Order = {
-        id: orderId,
-        userId: user.id,
-        platform,
-        service: activeService.name,
-        link,
-        quantity,
-        price: totalPrice,
-        status: OrderStatus.PENDING,
-        createdAt: new Date().toISOString(),
-        progress: 0,
-        autoRefill: activeService.refillStatus !== 'None'
-      };
+      // Execute atomic transaction for safe debit and order placement
+      await runTransaction(db, async (transaction) => {
+        const userSnap = await transaction.get(userRef);
+        if (!userSnap.exists()) {
+          throw new Error("User SMM account node not found in Firestore.");
+        }
+        const latestUserData = userSnap.data() as User;
+        if (latestUserData.balance < totalPrice) {
+          throw new Error(`Low balance. You need ₦${totalPrice.toLocaleString()} but only have ₦${latestUserData.balance.toLocaleString()}. Please fund your wallet.`);
+        }
 
-      const remainingBalance = latestUserData.balance - totalPrice;
-      await updateDoc(userRef, {
-        balance: remainingBalance
+        remainingBalance = latestUserData.balance - totalPrice;
+
+        // Perform balance deduction
+        transaction.update(userRef, { balance: remainingBalance });
+
+        // Place the SMM order
+        const orderRef = doc(db, 'orders', orderId);
+        transaction.set(orderRef, newOrder);
       });
-      await setDoc(doc(db, 'orders', orderId), newOrder);
 
+      // Show clear success toast indicating successful submission and deduction
+      showToast("Order submitted successfully! Price deducted.", 'success');
+
+      // Navigate to congratulations success page
       navigate('/congratulations', { 
         state: { 
           order: newOrder,
@@ -775,8 +789,15 @@ const NewOrderPage = () => {
           newBalance: remainingBalance 
         } 
       });
-    } catch (error) {
-       handleFirestoreError(error, OperationType.WRITE, 'orders/users');
+    } catch (error: any) {
+      console.error("Atomic transaction failed:", error);
+      let errMsg = "Failed to submit SMM order. Please check balance and connection.";
+      if (error instanceof Error) {
+        errMsg = error.message;
+      } else if (error && typeof error === 'object') {
+        errMsg = error.message || JSON.stringify(error);
+      }
+      showToast(errMsg, 'error');
     }
   };
 
