@@ -315,14 +315,14 @@ const LoginPage = () => {
 
           <form onSubmit={handleAuth} className="space-y-4">
             {authError && (
-              authError.toLowerCase().includes('unauthorized-domain') ? (
+              (authError.toLowerCase().includes('unauthorized-domain') || authError.toLowerCase().includes('unauthorized') || authError.toLowerCase().includes('domain')) ? (
                 <div className="bg-purple-950/40 border border-purple-500/35 p-5 rounded-3xl text-left space-y-4 shadow-inner">
                   <p className="text-purple-400 text-[10px] font-black uppercase tracking-wider flex items-center gap-2">
                     <span className="w-1.5 h-1.5 rounded-full bg-purple-500 animate-pulse shrink-0" />
                     Firebase Authorization Steps Needed
                   </p>
                   
-                  <div className="space-y-2 text-[11px] text-gray-300 font-semibold leading-relaxed">
+                  <div className="space-y-4 text-[11px] text-gray-300 font-semibold leading-relaxed">
                     <p>To let <strong className="text-white">ANYONE</strong> continue with Google, follow these simple steps:</p>
                     
                     <ol className="list-decimal pl-4 space-y-2 text-gray-400">
@@ -333,16 +333,37 @@ const LoginPage = () => {
                         Scroll down to the <strong className="text-white">Authorized domains</strong> section.
                       </li>
                       <li>
-                        Click <strong className="text-purple-400">Add domain</strong> and copy-paste these 2 domains, one by one:
-                        <div className="bg-[#05060A]/80 border border-white/5 p-2 rounded-xl font-mono text-[9px] text-purple-300 space-y-1.5 break-all mt-1 select-all select-text">
-                          <div>1. <span className="text-white">ais-dev-s4awj6r6eplr4dd2pgjeuy-288691445411.europe-west2.run.app</span></div>
-                          <div>2. <span className="text-white">ais-pre-s4awj6r6eplr4dd2pgjeuy-288691445411.europe-west2.run.app</span></div>
+                        Click <strong className="text-purple-400">Add domain</strong> and copy-paste these domains:
+                        <div className="bg-[#05060A]/80 border border-white/5 p-3 rounded-xl font-mono text-[9px] text-purple-300 space-y-2 break-all mt-1 select-all select-text">
+                          {window.location.hostname && window.location.hostname !== 'localhost' && window.location.hostname !== '127.0.0.1' && (
+                            <div className="bg-purple-500/10 border border-purple-500/20 p-2 rounded-lg">
+                              <span className="text-amber-400 font-bold block text-[8px] uppercase tracking-wider mb-0.5">👉 CURRENT ACTIVE DOMAIN (ADD THIS!):</span>
+                              <span className="text-white font-black text-xs select-all">{window.location.hostname}</span>
+                            </div>
+                          )}
+                          <div>• <span className="text-white">ais-dev-s4awj6r6eplr4dd2pgjeuy-288691445411.europe-west2.run.app</span></div>
+                          <div>• <span className="text-white">ais-pre-s4awj6r6eplr4dd2pgjeuy-288691445411.europe-west2.run.app</span></div>
                         </div>
                       </li>
                       <li>
-                        Click <strong className="text-white">Add</strong>/<strong>Save</strong>. Return here and sign in instantly!
+                        Click <strong className="text-white">Add</strong> then click <strong className="text-white">Save</strong>. Return here and sign in instantly!
                       </li>
                     </ol>
+
+                    <div className="bg-purple-950/60 border border-purple-500/20 p-3 rounded-2xl space-y-2 mt-2">
+                      <p className="text-xs font-black text-amber-400 uppercase tracking-wide">⚠️ Common Pitfalls / Fixes:</p>
+                      <ul className="list-disc pl-4 space-y-1.5 text-gray-400 text-[10px]">
+                        <li>
+                          <strong className="text-white">No "https://" or slashes:</strong> Do NOT paste <code className="text-red-400 font-mono">https://ais-dev-.../</code>. Paste ONLY the exact domain text starting with <code className="text-emerald-400 font-mono">ais-dev-...</code> and ending with <code className="text-emerald-400 font-mono">.app</code> or your custom domain name without any trailing slashes.
+                        </li>
+                        <li>
+                          <strong className="text-white">Propagation Delay:</strong> Firebase changes can take <strong className="text-white">2–5 minutes</strong> to register globally. Refresh the page after saving.
+                        </li>
+                        <li>
+                          <strong className="text-white">Direct Email Workaround:</strong> Click <em className="text-purple-300">"New user? Join the network"</em> below and register with an email/password. This bypasses Google authentication settings entirely!
+                        </li>
+                      </ul>
+                    </div>
                   </div>
 
                   <div className="pt-2 flex flex-col gap-2">
